@@ -3,6 +3,7 @@ import 'screens/home_page.dart';
 import 'screens/transactions_page.dart';
 import 'screens/analytics_page.dart';
 import 'screens/settings_page.dart';
+import 'screens/add_transaction_page.dart';
 
 class MainNavigationRouter extends StatefulWidget {
   @override
@@ -75,55 +76,11 @@ class _MainNavigationRouterState extends State<MainNavigationRouter> {
   Widget _buildAddButton() {
     return GestureDetector(
       onTap: () {
-        // Add functionality for the add button
         showModalBottomSheet(
           context: context,
-          backgroundColor: Color(0xFF2A2D3A),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          builder: (context) => Container(
-            padding: EdgeInsets.all(20),
-            height: 200,
-            child: Column(
-              children: [
-                Text(
-                  'Add Transaction',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: Text('Add Income'),
-                      ),
-                    ),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: Text('Add Expense'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (context) => AddTransactionPage(),
         );
       },
       child: Container(
