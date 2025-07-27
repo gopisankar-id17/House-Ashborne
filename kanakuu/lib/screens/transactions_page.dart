@@ -1,6 +1,30 @@
 import 'package:flutter/material.dart';
+import 'skeleton_loading_page.dart';
 
-class TransactionsPage extends StatelessWidget {
+class TransactionsPage extends StatefulWidget {
+  @override
+  _TransactionsPageState createState() => _TransactionsPageState();
+}
+
+class _TransactionsPageState extends State<TransactionsPage> {
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(Duration(seconds: 2), () {
+      setState(() => isLoading = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return isLoading 
+      ? TransactionsSkeletonPage()
+      : ActualTransactionsPage(); // Your existing transactions page content
+  }
+}
+class ActualTransactionsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(

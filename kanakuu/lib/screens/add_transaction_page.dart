@@ -1,5 +1,38 @@
 import 'package:flutter/material.dart';
+import 'skeleton_loading_page.dart';
 
+void showAddTransactionModal(BuildContext context) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => AddTransactionWithSkeleton(),
+  );
+}
+
+class AddTransactionWithSkeleton extends StatefulWidget {
+  @override
+  _AddTransactionWithSkeletonState createState() => _AddTransactionWithSkeletonState();
+}
+
+class _AddTransactionWithSkeletonState extends State<AddTransactionWithSkeleton> {
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(Duration(seconds: 1), () {
+      setState(() => isLoading = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return isLoading 
+      ? AddTransactionSkeletonPage()
+      : AddTransactionPage(); // Your existing add transaction page
+  }
+}
 class AddTransactionPage extends StatefulWidget {
   @override
   _AddTransactionPageState createState() => _AddTransactionPageState();
