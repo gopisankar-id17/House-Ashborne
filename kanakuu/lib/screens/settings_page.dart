@@ -1,7 +1,32 @@
 import 'package:flutter/material.dart';
+import 'skeleton_loading_page.dart';
 
-class SettingsPage extends StatelessWidget {
-  const SettingsPage({Key? key}) : super(key: key);
+class SettingsPage extends StatefulWidget {
+  @override
+  _SettingsPageState createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(Duration(seconds: 2), () {
+      setState(() => isLoading = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return isLoading 
+      ? SettingsSkeletonPage()
+      : ActualSettingsPage(); // Your existing settings page content
+  }
+}
+
+class ActualSettingsPage extends StatelessWidget {
+  const ActualSettingsPage({Key? key}) : super(key: key); // Fixed: Changed constructor name from SettingsPage to ActualSettingsPage
 
   @override
   Widget build(BuildContext context) {

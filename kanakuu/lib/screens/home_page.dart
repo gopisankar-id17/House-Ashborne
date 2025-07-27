@@ -1,6 +1,34 @@
 import 'package:flutter/material.dart';
+import 'skeleton_loading_page.dart'; // Import your skeleton loading page
 
-class HomePage extends StatelessWidget {
+// Main HomePage with loading state
+class HomePage extends StatefulWidget {
+  @override
+  _HomePageState createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Simulate data loading
+    Future.delayed(Duration(seconds: 3), () {
+      setState(() => isLoading = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return isLoading 
+      ? AnalyticsSkeletonPage() // Fixed: Changed from AdvancedSkeletonLoadingPage to AnalyticsSkeletonPage (which exists in skeleton_loading_page.dart)
+      : ActualHomePage(); // Your actual home page content
+  }
+}
+
+// Renamed the second class to avoid conflict
+class ActualHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(

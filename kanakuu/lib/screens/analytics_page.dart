@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'skeleton_loading_page.dart';
 
 class AnalyticsPage extends StatefulWidget {
   @override
@@ -6,6 +7,31 @@ class AnalyticsPage extends StatefulWidget {
 }
 
 class _AnalyticsPageState extends State<AnalyticsPage> {
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    // Simulate data loading
+    Future.delayed(Duration(seconds: 3), () {
+      setState(() => isLoading = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return isLoading 
+      ? AnalyticsSkeletonPage()
+      : ActualAnalyticsPage(); // Your existing analytics page content
+  }
+}
+
+class ActualAnalyticsPage extends StatefulWidget {
+  @override
+  _ActualAnalyticsPageState createState() => _ActualAnalyticsPageState(); // Fixed: Changed to _ActualAnalyticsPageState
+}
+
+class _ActualAnalyticsPageState extends State<ActualAnalyticsPage> { // Fixed: Changed from _AnalyticsPageState to _ActualAnalyticsPageState
   String selectedPeriod = '1M';
   String selectedTab = 'Overview';
 
