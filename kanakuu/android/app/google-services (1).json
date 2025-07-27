@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "493141315182",
+    "project_id": "ahorra-4121c",
+    "storage_bucket": "ahorra-4121c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:493141315182:android:6b1d0cd851d4f195ae607f",
+        "android_client_info": {
+          "package_name": "com.example.kanakuu"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA6KtWj4Yw6xPmPYK3vttTCg_DQrIGtxH0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
