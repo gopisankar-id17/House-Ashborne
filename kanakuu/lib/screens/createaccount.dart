@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/user_service.dart';
 import '../services/biometric_service.dart';
+import '../services/session_service.dart'; // Import the SessionService
 
 class CreateAccountPage extends StatefulWidget {
   const CreateAccountPage({Key? key}) : super(key: key);
@@ -19,12 +20,28 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   final _confirmPasswordController = TextEditingController();
   final _userService = UserService();
   final _biometricService = BiometricService();
+  final _sessionService = SessionService(); // Initialize SessionService
 
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _biometricEnabled = false;
   bool _termsAccepted = false;
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSessionAndRedirect(); // Check session on init
+  }
+
+  // New method to check session and redirect
+  Future<void> _checkSessionAndRedirect() async {
+    final isLoggedIn = await _sessionService.isLoggedIn();
+    if (isLoggedIn && mounted) {
+      // If already logged in, navigate to home and prevent showing login screen
+      Navigator.pushReplacementNamed(context, '/home');
+    }
+  }
 
   @override
   void dispose() {
@@ -59,9 +76,10 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
         biometricEnabled: _biometricEnabled,
       );
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('userId', userId);
+      // Save user session after successful account creation
+      await _sessionService.saveUserSession(userId);
 
+      // If biometric is enabled, save the email for future biometric login
       if (_biometricEnabled) {
         final isAvailable = await _biometricService.isBiometricAvailable();
         if (isAvailable) {

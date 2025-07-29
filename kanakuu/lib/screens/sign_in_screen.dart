@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/biometric_service.dart';
+import '../services/session_service.dart'; // Import the SessionService
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({Key? key}) : super(key: key);
@@ -14,6 +15,7 @@ class _SignInScreenState extends State<SignInScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _biometricService = BiometricService();
+  final _sessionService = SessionService(); // Initialize SessionService
 
   bool _isPasswordVisible = false;
   bool _rememberMe = false;
@@ -23,15 +25,26 @@ class _SignInScreenState extends State<SignInScreen> {
   @override
   void initState() {
     super.initState();
+    _checkSessionAndRedirect(); // Check session first
     _checkBiometricAvailability();
     _loadSavedEmail();
 
-    // Automatically try biometric login if available
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_biometricAvailable) {
+    // Automatically try biometric login if available, but only if no active session
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final isLoggedIn = await _sessionService.isLoggedIn();
+      if (!isLoggedIn && _biometricAvailable) {
         _signInWithFingerprint();
       }
     });
+  }
+
+  // New method to check session and redirect
+  Future<void> _checkSessionAndRedirect() async {
+    final isLoggedIn = await _sessionService.isLoggedIn();
+    if (isLoggedIn && mounted) {
+      // If already logged in, navigate to home and prevent showing login screen
+      Navigator.pushReplacementNamed(context, '/home');
+    }
   }
 
   @override
@@ -71,6 +84,15 @@ class _SignInScreenState extends State<SignInScreen> {
           .get();
 
       if (querySnapshot.docs.isNotEmpty) {
+        // IMPORTANT: Confirm how 'userId' is stored in your Firestore documents.
+        // If 'userId' is the document ID:
+        final userId = querySnapshot.docs.first.id;
+        // If 'userId' is a specific field in the document, uncomment and use this:
+        // final userId = querySnapshot.docs.first.data()['userId'] as String;
+
+        // Save user session after successful password login
+        await _sessionService.saveUserSession(userId);
+
         if (_rememberMe) {
           await _biometricService.saveBiometricEmail(_emailController.text.trim());
         }
@@ -86,9 +108,10 @@ class _SignInScreenState extends State<SignInScreen> {
         }
       }
     } catch (e) {
+      print("Error signing in with password: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('An error occurred while signing in')),
+          SnackBar(content: Text('An error occurred while signing in: ${e.toString()}')), // Show actual error
         );
       }
     } finally {
@@ -120,22 +143,46 @@ class _SignInScreenState extends State<SignInScreen> {
               .get();
 
           if (querySnapshot.docs.isNotEmpty) {
-            Navigator.pushReplacementNamed(context, '/home');
+            // IMPORTANT: Confirm how 'userId' is stored in your Firestore documents.
+            // If 'userId' is the document ID:
+            final userId = querySnapshot.docs.first.id;
+            // If 'userId' is a specific field in the document, uncomment and use this:
+            // final userId = querySnapshot.docs.first.data()['userId'] as String;
+
+            // Save user session after successful biometric login
+            await _sessionService.saveUserSession(userId);
+
+            if (mounted) {
+              Navigator.pushReplacementNamed(context, '/home');
+            }
           } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Saved email not found in database')),
-            );
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Saved email not found in database')),
+              );
+            }
           }
         } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No saved email found for biometric login')),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No saved email found')),
+            const SnackBar(content: Text('Biometric authentication cancelled or failed')),
           );
         }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Biometric authentication failed')),
-      );
+      print("Error with biometric authentication: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Biometric authentication failed: ${e.toString()}')), // Show actual error
+        );
+      }
     }
   }
 
