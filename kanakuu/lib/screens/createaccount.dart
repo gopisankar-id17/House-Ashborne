@@ -98,27 +98,35 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                     const SizedBox(height: 40),
                     
                     // Logo
-                    Center(
-                    child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                        color: const Color(0xFF2A2D3A),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                            color: const Color(0xFF3A3D4A),
-                            width: 1,
-                        ),
-                        ),
-                        child: const Icon(
-                        Icons.trending_up,
-                        color: Color(0xFFFF6B35),
-                        size: 40,
-                        ),
-                    ),
-                    ),
+                 Center(
+                      child: Container(
+    width: 90, // slightly bigger for glow space
+    height: 90,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      boxShadow: [
+        BoxShadow(
+          color: Color(0xFFFF6B35).withOpacity(0.5), // Orange glow
+          blurRadius: 15,
+          spreadRadius: 2,
+        ),
+      ],
+    ),
                     
-                    const SizedBox(height: 32),
+  child: ClipOval(
+    child: Image.asset(
+      'assets/Ahorra_logo.png',
+      width: 80,
+      height: 80,
+      fit: BoxFit.cover, // Fill the circle properly
+    ),
+  ),
+),
+                 ),
+const SizedBox(height: 32),
+
+
+
                     
                     // Title
                     const Text(

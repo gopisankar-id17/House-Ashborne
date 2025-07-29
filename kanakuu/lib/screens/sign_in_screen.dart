@@ -25,6 +25,13 @@ class _SignInScreenState extends State<SignInScreen> {
     super.initState();
     _checkBiometricAvailability();
     _loadSavedEmail();
+
+    // Automatically try biometric login if available
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_biometricAvailable) {
+        _signInWithFingerprint();
+      }
+    });
   }
 
   @override
@@ -64,7 +71,6 @@ class _SignInScreenState extends State<SignInScreen> {
           .get();
 
       if (querySnapshot.docs.isNotEmpty) {
-        // Save email to local storage if biometric is enabled
         if (_rememberMe) {
           await _biometricService.saveBiometricEmail(_emailController.text.trim());
         }
@@ -139,6 +145,7 @@ class _SignInScreenState extends State<SignInScreen> {
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -152,27 +159,32 @@ class _SignInScreenState extends State<SignInScreen> {
               const SizedBox(height: 40),
               
               // Logo
-              Center(
-                child: Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2A2D3A),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: const Color(0xFF3A3D4A),
-                      width: 1,
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.trending_up,
-                    color: Color(0xFFFF6B35),
-                    size: 40,
-                  ),
-                ),
-              ),
-              
-              const SizedBox(height: 32),
+             Center(
+  child: Container(
+    width: 90, // slightly bigger for glow space
+    height: 90,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      boxShadow: [
+        BoxShadow(
+          color: Color(0xFFFF6B35).withOpacity(0.5), // Orange glow
+          blurRadius: 15,
+          spreadRadius: 2,
+        ),
+      ],
+    ),
+    child: ClipOval(
+      child: Image.asset(
+        'assets/Ahorra_logo.png',
+        width: 80,
+        height: 80,
+        fit: BoxFit.cover,
+      ),
+    ),
+  ),
+),
+const SizedBox(height: 32),
+
               
               // Title
               const Text(
