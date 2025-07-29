@@ -14,9 +14,9 @@ class _MainNavigationRouterState extends State<MainNavigationRouter> {
   int _currentIndex = 0;
   
   final List<Widget> _pages = [
-    HomePage(),
+    ActualHomePage(), // Changed from ActualHomePage to ActualHomePageContent
     TransactionsPage(),
-    Container(), // Placeholder for Add button
+    Container(), // Placeholder for Add button (not used)
     AnalyticsPage(),
     SettingsPage(),
   ];
@@ -24,7 +24,7 @@ class _MainNavigationRouterState extends State<MainNavigationRouter> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _currentIndex == 2 ? HomePage() : _pages[_currentIndex],
+      body: _pages[_currentIndex],
       bottomNavigationBar: Container(
         height: 80,
         decoration: BoxDecoration(

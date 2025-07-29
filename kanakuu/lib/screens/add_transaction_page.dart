@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'skeleton_loading_page.dart';
+import '../services/session_service.dart'; // Import the SessionService
 
+// Function to show the modal bottom sheet
 void showAddTransactionModal(BuildContext context) {
   showModalBottomSheet(
     context: context,
@@ -10,6 +13,7 @@ void showAddTransactionModal(BuildContext context) {
   );
 }
 
+// Wrapper to show skeleton loading for AddTransactionPage
 class AddTransactionWithSkeleton extends StatefulWidget {
   @override
   _AddTransactionWithSkeletonState createState() => _AddTransactionWithSkeletonState();
@@ -28,11 +32,13 @@ class _AddTransactionWithSkeletonState extends State<AddTransactionWithSkeleton>
 
   @override
   Widget build(BuildContext context) {
-    return isLoading 
+    return isLoading
       ? AddTransactionSkeletonPage()
       : AddTransactionPage(); // Your existing add transaction page
   }
 }
+
+// The actual Add Transaction Page content
 class AddTransactionPage extends StatefulWidget {
   @override
   _AddTransactionPageState createState() => _AddTransactionPageState();
@@ -41,9 +47,12 @@ class AddTransactionPage extends StatefulWidget {
 class _AddTransactionPageState extends State<AddTransactionPage> {
   String selectedType = 'Income';
   String selectedCategory = 'Salary';
-  TextEditingController amountController = TextEditingController(text: '4556');
-  TextEditingController descriptionController = TextEditingController(text: 'axx');
+  TextEditingController amountController = TextEditingController(); // Initialize empty
+  TextEditingController descriptionController = TextEditingController(); // Initialize empty
   DateTime selectedDate = DateTime.now();
+
+  final SessionService _sessionService = SessionService(); // Initialize SessionService
+  bool _isSaving = false; // New state for saving indicator
 
   List<Map<String, dynamic>> incomeCategories = [
     {'name': 'Salary', 'icon': Icons.work_outline, 'color': Colors.green},
@@ -60,6 +69,13 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     {'name': 'Fun', 'icon': Icons.celebration_outlined, 'color': Colors.purple},
     {'name': 'Health', 'icon': Icons.favorite_outline, 'color': Colors.green},
   ];
+
+  @override
+  void dispose() {
+    amountController.dispose();
+    descriptionController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -144,7 +160,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               child: GestureDetector(
                 onTap: () => setState(() {
                   selectedType = 'Expense';
-                  selectedCategory = 'Food';
+                  selectedCategory = 'Food'; // Reset category when type changes
                 }),
                 child: Container(
                   padding: EdgeInsets.symmetric(vertical: 16),
@@ -174,7 +190,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               child: GestureDetector(
                 onTap: () => setState(() {
                   selectedType = 'Income';
-                  selectedCategory = 'Salary';
+                  selectedCategory = 'Salary'; // Reset category when type changes
                 }),
                 child: Container(
                   padding: EdgeInsets.symmetric(vertical: 16),
@@ -409,7 +425,8 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                 ),
                 SizedBox(width: 12),
                 Text(
-                  '${selectedDate.day.toString().padLeft(2, '0')}-${selectedDate.month.toString().padLeft(2, '0')}-yyyy',
+                  // Format date to show day-month-year
+                  '${selectedDate.day.toString().padLeft(2, '0')}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.year}',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -458,7 +475,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
         SizedBox(width: 16),
         Expanded(
           child: GestureDetector(
-            onTap: _addTransaction,
+            onTap: _isSaving ? null : _addTransaction, // Disable button while saving
             child: Container(
               padding: EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
@@ -466,25 +483,34 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.arrow_forward,
-                      color: Colors.white,
-                      size: 18,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      'Add Transaction',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                child: _isSaving
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: const [
+                          Icon(
+                            Icons.arrow_forward,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Add Transaction',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
               ),
             ),
           ),
@@ -497,14 +523,21 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: selectedDate,
-      firstDate: DateTime(0000),
+      firstDate: DateTime(2000), // Set a reasonable first date
       lastDate: DateTime.now(),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: ColorScheme.dark(
               primary: Colors.orange,
+              onPrimary: Colors.white, // Color of text on primary background
               surface: Color(0xFF2A2D3A),
+              onSurface: Colors.white, // Color of text on surface
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.orange, // Color of the buttons (OK, Cancel)
+              ),
             ),
           ),
           child: child!,
@@ -518,22 +551,74 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     }
   }
 
-  void _addTransaction() {
-    // Handle adding transaction logic here
-    print('Type: $selectedType');
-    print('Amount: ${amountController.text}');
-    print('Category: $selectedCategory');
-    print('Description: ${descriptionController.text}');
-    print('Date: $selectedDate');
-    
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Transaction added successfully!'),
-        backgroundColor: Colors.green,
-      ),
-    );
-    
-    Navigator.pop(context);
+  void _addTransaction() async {
+    // Basic validation
+    if (amountController.text.isEmpty || double.tryParse(amountController.text) == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid amount.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSaving = true; // Show loading indicator
+    });
+
+    try {
+      final userId = await _sessionService.getUserSession();
+      if (userId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User not logged in. Please sign in again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        Navigator.pop(context); // Dismiss modal
+        // Optionally navigate to sign-in page if not already handled by session check
+        // Navigator.pushReplacementNamed(context, '/signin');
+        return;
+      }
+
+      final double amount = double.parse(amountController.text);
+
+      // Prepare transaction data
+      final transactionData = {
+        'userId': userId,
+        'type': selectedType,
+        'amount': amount,
+        'category': selectedCategory,
+        'description': descriptionController.text.trim(),
+        'date': Timestamp.fromDate(selectedDate), // Save date as Firestore Timestamp
+        'createdAt': FieldValue.serverTimestamp(), // Automatically set server timestamp
+      };
+
+      // Add the transaction to Firestore
+      await FirebaseFirestore.instance.collection('transactions').add(transactionData);
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Transaction added successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      
+      Navigator.pop(context); // Dismiss the modal after successful addition
+    } catch (e) {
+      print("Error adding transaction: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to add transaction: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isSaving = false; // Hide loading indicator
+      });
+    }
   }
 }

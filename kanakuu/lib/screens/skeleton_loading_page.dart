@@ -42,7 +42,7 @@ abstract class BaseSkeletonLoadingState<T extends StatefulWidget> extends State<
             Color(0xFF3A3D4A),
             Color(0xFF2A2D3A),
           ],
-          stops: [0.0, 0.5, 1.0],
+          stops: [0.0, 0.2, 0.5],
         ),
       ),
     );

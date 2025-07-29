@@ -1,39 +1,345 @@
 import 'package:flutter/material.dart';
-import 'skeleton_loading_page.dart'; // Import your skeleton loading page
 
-// Main HomePage with loading state
-class HomePage extends StatefulWidget {
-  @override
-  _HomePageState createState() => _HomePageState();
-}
-
-class _HomePageState extends State<HomePage> {
-  bool isLoading = true;
+// Base Skeleton Loading Widget for shared animation logic
+abstract class BaseSkeletonLoadingState<T extends StatefulWidget> extends State<T> with SingleTickerProviderStateMixin {
+  late AnimationController animationController;
+  late Animation<double> shimmerAnimation;
 
   @override
   void initState() {
     super.initState();
-    // Simulate data loading
-    Future.delayed(Duration(seconds: 3), () {
-      setState(() => isLoading = false);
-    });
+    animationController = AnimationController(
+      duration: Duration(milliseconds: 2000),
+      vsync: this,
+    );
+    shimmerAnimation = Tween<double>(begin: -1.0, end: 2.0).animate(
+      CurvedAnimation(parent: animationController, curve: Curves.easeInOut),
+    );
+    animationController.repeat();
   }
 
   @override
-  Widget build(BuildContext context) {
-    return isLoading 
-      ? AnalyticsSkeletonPage() // Fixed: Changed from AdvancedSkeletonLoadingPage to AnalyticsSkeletonPage (which exists in skeleton_loading_page.dart)
-      : ActualHomePage(); // Your actual home page content
+  void dispose() {
+    animationController.dispose();
+    super.dispose();
+  }
+
+  Widget buildShimmerContainer({
+    required double width,
+    required double height,
+    double borderRadius = 8,
+  }) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        gradient: LinearGradient(
+          begin: Alignment(-1.0 + shimmerAnimation.value, 0.0),
+          end: Alignment(-0.5 + shimmerAnimation.value, 0.0),
+          colors: [
+            Color(0xFF2A2D3A),
+            Color(0xFF3A3D4A),
+            Color(0xFF2A2D3A),
+          ],
+          stops: [0.0, 0.2, 0.5],
+        ),
+      ),
+    );
   }
 }
 
-// Renamed the second class to avoid conflict
-class ActualHomePage extends StatelessWidget {
+// Home Page Skeleton Loading that matches your actual home page
+class HomePageSkeletonLoading extends StatefulWidget {
+  @override
+  _HomePageSkeletonLoadingState createState() => _HomePageSkeletonLoadingState();
+}
+
+class _HomePageSkeletonLoadingState extends BaseSkeletonLoadingState<HomePageSkeletonLoading> {
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Color(0xFF1A1D29),
       body: SafeArea(
+        child: AnimatedBuilder(
+          animation: shimmerAnimation,
+          builder: (context, child) {
+            return SingleChildScrollView(
+              padding: EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeaderSkeleton(),
+                  SizedBox(height: 20),
+                  _buildBalanceCardSkeleton(),
+                  SizedBox(height: 20),
+                  _buildIncomeExpenseCardsSkeleton(),
+                  SizedBox(height: 30),
+                  _buildWeeklySpendingSkeleton(),
+                  SizedBox(height: 30),
+                  _buildExpenseCategoriesSkeleton(),
+                  SizedBox(height: 30),
+                  _buildBudgetProgressSkeleton(),
+                  SizedBox(height: 100),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderSkeleton() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            buildShimmerContainer(width: 180, height: 18),
+            SizedBox(height: 8),
+            buildShimmerContainer(width: 200, height: 14),
+          ],
+        ),
+        buildShimmerContainer(width: 40, height: 40, borderRadius: 20),
+      ],
+    );
+  }
+
+  Widget _buildBalanceCardSkeleton() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Color(0xFF2A2D3A),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          buildShimmerContainer(width: 100, height: 14),
+          SizedBox(height: 8),
+          buildShimmerContainer(width: 160, height: 32),
+          SizedBox(height: 4),
+          buildShimmerContainer(width: 140, height: 12),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildIncomeExpenseCardsSkeleton() {
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Color(0xFF2A2D3A),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    buildShimmerContainer(width: 8, height: 8, borderRadius: 4),
+                    SizedBox(width: 8),
+                    buildShimmerContainer(width: 50, height: 14),
+                  ],
+                ),
+                SizedBox(height: 8),
+                buildShimmerContainer(width: 80, height: 20),
+              ],
+            ),
+          ),
+        ),
+        SizedBox(width: 16),
+        Expanded(
+          child: Container(
+            padding: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Color(0xFF2A2D3A),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    buildShimmerContainer(width: 8, height: 8, borderRadius: 4),
+                    SizedBox(width: 8),
+                    buildShimmerContainer(width: 60, height: 14),
+                  ],
+                ),
+                SizedBox(height: 8),
+                buildShimmerContainer(width: 80, height: 20),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWeeklySpendingSkeleton() {
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Color(0xFF2A2D3A),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          buildShimmerContainer(width: 140, height: 18),
+          SizedBox(height: 20),
+          Container(
+            height: 120,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(7, (index) => _buildBarChartSkeleton()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBarChartSkeleton() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        buildShimmerContainer(width: 20, height: 60, borderRadius: 10),
+        SizedBox(height: 8),
+        buildShimmerContainer(width: 25, height: 12),
+      ],
+    );
+  }
+
+  Widget _buildExpenseCategoriesSkeleton() {
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Color(0xFF2A2D3A),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          buildShimmerContainer(width: 140, height: 18),
+          SizedBox(height: 20),
+          Row(
+            children: [
+              buildShimmerContainer(width: 120, height: 120, borderRadius: 60),
+              SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  children: List.generate(4, (index) => _buildLegendItemSkeleton()),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLegendItemSkeleton() {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          buildShimmerContainer(width: 12, height: 12, borderRadius: 6),
+          SizedBox(width: 8),
+          buildShimmerContainer(width: 80, height: 14),
+          Spacer(),
+          buildShimmerContainer(width: 30, height: 14),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBudgetProgressSkeleton() {
+    return Container(
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Color(0xFF2A2D3A),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          buildShimmerContainer(width: 120, height: 18),
+          SizedBox(height: 20),
+          ...List.generate(4, (index) => _buildBudgetItemSkeleton()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBudgetItemSkeleton() {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              buildShimmerContainer(width: 100, height: 14),
+              buildShimmerContainer(width: 30, height: 14),
+            ],
+          ),
+          SizedBox(height: 6),
+          buildShimmerContainer(width: double.infinity, height: 4, borderRadius: 2),
+        ],
+      ),
+    );
+  }
+}
+
+// Updated ActualHomePage class
+class ActualHomePage extends StatefulWidget {
+  @override
+  _ActualHomePageState createState() => _ActualHomePageState();
+}
+
+class _ActualHomePageState extends State<ActualHomePage> {
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return isLoading
+        ? HomePageSkeletonLoading() // Use the proper home page skeleton
+        : Scaffold(
+            backgroundColor: Color(0xFF1A1D29),
+            body: ActualHomePageContent(),
+          );
+  }
+}
+
+// Your ActualHomePageContent remains exactly the same
+class ActualHomePageContent extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Color(0xFF1A1D29),
+      child: SafeArea(
         child: SingleChildScrollView(
           padding: EdgeInsets.all(20),
           child: Column(
@@ -50,6 +356,7 @@ class ActualHomePage extends StatelessWidget {
               _buildExpenseCategories(),
               SizedBox(height: 30),
               _buildBudgetProgress(),
+              SizedBox(height: 100),
             ],
           ),
         ),
