@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:io'; // Added this import for File class
+import '../services/profile_service.dart'; // Ensure this import is correct
 
 // Base Skeleton Loading Widget for shared animation logic
 abstract class BaseSkeletonLoadingState<T extends StatefulWidget> extends State<T> with SingleTickerProviderStateMixin {
@@ -103,7 +106,13 @@ class _HomePageSkeletonLoadingState extends BaseSkeletonLoadingState<HomePageSke
             buildShimmerContainer(width: 200, height: 14),
           ],
         ),
-        buildShimmerContainer(width: 40, height: 40, borderRadius: 20),
+        Row(
+          children: [
+            buildShimmerContainer(width: 40, height: 40, borderRadius: 20),
+            SizedBox(width: 12),
+            buildShimmerContainer(width: 40, height: 40, borderRadius: 20),
+          ],
+        ),
       ],
     );
   }
@@ -333,8 +342,12 @@ class _ActualHomePageState extends State<ActualHomePage> {
   }
 }
 
-// Your ActualHomePageContent remains exactly the same
+// Updated ActualHomePageContent with profile integration
 class ActualHomePageContent extends StatelessWidget {
+  final ProfileService _profileService = ProfileService();
+
+  ActualHomePageContent({Key? key}) : super(key: key); // Add constructor
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -345,7 +358,7 @@ class ActualHomePageContent extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(),
+              _buildHeader(context), // Pass context to the method
               SizedBox(height: 20),
               _buildBalanceCard(),
               SizedBox(height: 20),
@@ -364,45 +377,122 @@ class ActualHomePageContent extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildHeader(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _profileService.getUserProfileStream(),
+      builder: (context, snapshot) {
+        String userName = 'User';
+        String? profileImagePath; // Changed from profileImageUrl to profileImagePath
+        
+        if (snapshot.hasData && snapshot.data!.exists) {
+          final data = snapshot.data!.data() as Map<String, dynamic>;
+          userName = data['name'] ?? 'User';
+          profileImagePath = data['profileImagePath']; // Get local image path
+          print('Profile image path from Firestore: $profileImagePath'); // Debug log
+        }
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              'Good afternoon, GojansT2',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Good ${_getTimeOfDay()}, $userName',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  'Here\'s your financial overview',
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 14,
+                  ),
+                ),
+              ],
             ),
-            Text(
-              'Here\'s your financial overview',
-              style: TextStyle(
-                color: Colors.grey[400],
-                fontSize: 14,
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Color(0xFF2A2D3A),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.notifications_outlined,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                SizedBox(width: 12),
+                GestureDetector(
+                  onTap: () {
+                    // Navigate to profile page
+                    Navigator.pushNamed(context, '/profile');
+                  },
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.orange, width: 2),
+                    ),
+                    child: ClipOval(
+                      child: profileImagePath != null && File(profileImagePath).existsSync()
+                          ? Image.file(
+                              File(profileImagePath),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                print('Error loading profile image: $error');
+                                return Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[600],
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                );
+                              },
+                            )
+                          : Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey[600],
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.person,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
-        ),
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.orange,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            Icons.notifications_outlined,
-            color: Colors.white,
-            size: 20,
-          ),
-        ),
-      ],
+        );
+      },
     );
+  }
+
+  String _getTimeOfDay() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return 'morning';
+    } else if (hour < 17) {
+      return 'afternoon';
+    } else {
+      return 'evening';
+    }
   }
 
   Widget _buildBalanceCard() {
@@ -448,7 +538,7 @@ class ActualHomePageContent extends StatelessWidget {
       ),
     );
   }
-
+  
   Widget _buildIncomeExpenseCards() {
     return Row(
       children: [
@@ -589,9 +679,9 @@ class ActualHomePageContent extends StatelessWidget {
       children: [
         Container(
           width: 20,
-          height: 80 * height,
+          height: 100 * height,
           decoration: BoxDecoration(
-            color: Colors.orange,
+            color: Color(0xFFFF6B35),
             borderRadius: BorderRadius.circular(10),
           ),
         ),
@@ -626,61 +716,22 @@ class ActualHomePageContent extends StatelessWidget {
             ),
           ),
           SizedBox(height: 20),
-          Row(
-            children: [
-              Container(
-                width: 120,
-                height: 120,
-                child: CustomPaint(
-                  painter: DonutChartPainter(),
+          // Placeholder for a Pie Chart or similar visualization
+          Center(
+            child: Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0xFFFF6B35),
+              ),
+              child: Center(
+                child: Text(
+                  'Chart Placeholder',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white, fontSize: 10),
                 ),
               ),
-              SizedBox(width: 20),
-              Expanded(
-                child: Column(
-                  children: [
-                    _buildLegendItem('Food', Colors.orange, 35),
-                    _buildLegendItem('Transport', Colors.blue, 25),
-                    _buildLegendItem('Shopping', Colors.purple, 20),
-                    _buildLegendItem('Entertainment', Colors.green, 20),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLegendItem(String category, Color color, int percentage) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
-          ),
-          SizedBox(width: 8),
-          Text(
-            category,
-            style: TextStyle(
-              color: Colors.grey[400],
-              fontSize: 14,
-            ),
-          ),
-          Spacer(),
-          Text(
-            '$percentage%',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -707,18 +758,17 @@ class ActualHomePageContent extends StatelessWidget {
             ),
           ),
           SizedBox(height: 20),
-          _buildBudgetItem('Food & Dining', 85, Colors.orange),
-          _buildBudgetItem('Transportation', 62, Colors.blue),
-          _buildBudgetItem('Shopping', 78, Colors.purple),
-          _buildBudgetItem('Bills & Utilities', 45, Colors.red),
+          _buildBudgetItem('Food', 0.7),
+          _buildBudgetItem('Shopping', 0.4),
+          _buildBudgetItem('Bills', 0.9),
         ],
       ),
     );
   }
 
-  Widget _buildBudgetItem(String category, int percentage, Color color) {
+  Widget _buildBudgetItem(String category, double progress) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -727,85 +777,23 @@ class ActualHomePageContent extends StatelessWidget {
             children: [
               Text(
                 category,
-                style: TextStyle(
-                  color: Colors.grey[400],
-                  fontSize: 14,
-                ),
+                style: TextStyle(color: Colors.white, fontSize: 14),
               ),
               Text(
-                '$percentage%',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
+                '${(progress * 100).toInt()}%',
+                style: TextStyle(color: Color(0xFFFF6B35), fontSize: 14),
               ),
             ],
           ),
           SizedBox(height: 6),
           LinearProgressIndicator(
-            value: percentage / 100,
-            backgroundColor: Colors.grey[800],
-            valueColor: AlwaysStoppedAnimation<Color>(color),
+            value: progress,
+            backgroundColor: Color(0xFF3A3D4A),
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF6B35)),
+            minHeight: 4,
           ),
         ],
       ),
     );
   }
-}
-
-class DonutChartPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-    final strokeWidth = 20.0;
-
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
-
-    // Food - Orange (35%)
-    paint.color = Colors.orange;
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius - strokeWidth / 2),
-      -1.57, // Start from top
-      2.2, // 35% of circle
-      false,
-      paint,
-    );
-
-    // Transport - Blue (25%)
-    paint.color = Colors.blue;
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius - strokeWidth / 2),
-      0.63, // Continue from food
-      1.57, // 25% of circle
-      false,
-      paint,
-    );
-
-    // Shopping - Purple (20%)
-    paint.color = Colors.purple;
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius - strokeWidth / 2),
-      2.2, // Continue from transport
-      1.26, // 20% of circle
-      false,
-      paint,
-    );
-
-    // Entertainment - Green (20%)
-    paint.color = Colors.green;
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius - strokeWidth / 2),
-      3.46, // Continue from shopping
-      1.26, // 20% of circle
-      false,
-      paint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
