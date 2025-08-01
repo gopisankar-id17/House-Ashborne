@@ -1,157 +1,420 @@
 import 'package:flutter/material.dart';
-import 'skeleton_loading_page.dart';
-import '../services/session_service.dart'; // Import the SessionService
+import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // Assuming this is used for some icons
+import 'package:url_launcher/url_launcher.dart'; // Assuming this is used for launching URLs
 
-class SettingsPage extends StatefulWidget {
+import 'profile_page.dart'; // Ensure this path is correct relative to settings_page.dart
+import '../services/session_service.dart'; // Import the SessionService
+import '../services/biometric_service.dart'; // Import BiometricService for clearing biometric data
+
+// Base Skeleton Loading Widget for shared animation logic
+abstract class BaseSkeletonLoadingState<T extends StatefulWidget> extends State<T> with SingleTickerProviderStateMixin {
+  late AnimationController animationController;
+  late Animation<double> shimmerAnimation;
+
   @override
-  _SettingsPageState createState() => _SettingsPageState();
+  void initState() {
+    super.initState();
+    animationController = AnimationController(
+      duration: Duration(milliseconds: 2000),
+      vsync: this,
+    );
+    shimmerAnimation = Tween<double>(begin: -1.0, end: 2.0).animate(
+      CurvedAnimation(parent: animationController, curve: Curves.easeInOut),
+    );
+    animationController.repeat();
+  }
+
+  @override
+  void dispose() {
+    animationController.dispose();
+    super.dispose();
+  }
+
+  Widget buildShimmerContainer({
+    required double width,
+    required double height,
+    double borderRadius = 8,
+  }) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(borderRadius),
+        gradient: LinearGradient(
+          begin: Alignment(-1.0 + shimmerAnimation.value, 0.0),
+          end: Alignment(-0.5 + shimmerAnimation.value, 0.0),
+          colors: [
+            Color(0xFF2A2D3A),
+            Color(0xFF3A3D4A),
+            Color(0xFF2A2D3A),
+          ],
+          stops: [0.0, 0.2, 0.5],
+        ),
+      ),
+    );
+  }
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class SettingsPageSkeletonLoading extends StatefulWidget {
+  @override
+  _SettingsPageSkeletonLoadingState createState() => _SettingsPageSkeletonLoadingState();
+}
+
+class _SettingsPageSkeletonLoadingState extends BaseSkeletonLoadingState<SettingsPageSkeletonLoading> {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Color(0xFF1A1D29),
+      body: SafeArea(
+        child: AnimatedBuilder(
+          animation: shimmerAnimation,
+          builder: (context, child) {
+            return SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildHeaderSkeleton(),
+                  SizedBox(height: 20),
+                  _buildProfileSectionSkeleton(),
+                  _buildSettingsSectionSkeleton(),
+                  _buildSocialMediaSectionSkeleton(),
+                  _buildAppInfoSectionSkeleton(),
+                  SizedBox(height: 100),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderSkeleton() {
+    return Container(
+      padding: EdgeInsets.all(20),
+      child: Row(
+        children: [
+          buildShimmerContainer(width: 40, height: 40, borderRadius: 20),
+          SizedBox(width: 16),
+          Expanded(child: buildShimmerContainer(width: double.infinity, height: 24)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileSectionSkeleton() {
+    return Column(
+      children: [
+        _buildListTileSkeleton(),
+        _buildListTileSkeleton(),
+      ],
+    );
+  }
+
+  Widget _buildSettingsSectionSkeleton() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          child: buildShimmerContainer(width: 120, height: 18),
+        ),
+        _buildListTileSkeleton(),
+        _buildListTileSkeleton(),
+        _buildListTileSkeleton(),
+        _buildListTileSkeleton(),
+      ],
+    );
+  }
+
+  Widget _buildSocialMediaSectionSkeleton() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          child: buildShimmerContainer(width: 140, height: 18),
+        ),
+        _buildListTileSkeleton(),
+        _buildListTileSkeleton(),
+      ],
+    );
+  }
+
+  Widget _buildAppInfoSectionSkeleton() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          child: buildShimmerContainer(width: 100, height: 18),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: buildShimmerContainer(width: 80, height: 14),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildListTileSkeleton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Row(
+        children: [
+          buildShimmerContainer(width: 24, height: 24),
+          SizedBox(width: 20),
+          Expanded(child: buildShimmerContainer(width: double.infinity, height: 16)),
+        ],
+      ),
+    );
+  }
+}
+
+class ActualSettingsPage extends StatefulWidget {
+  @override
+  _ActualSettingsPageState createState() => _ActualSettingsPageState();
+}
+
+class _ActualSettingsPageState extends State<ActualSettingsPage> {
   bool isLoading = true;
+  bool _isSigningOut = false;
+  final _sessionService = SessionService();
+  final _biometricService = BiometricService();
 
   @override
   void initState() {
     super.initState();
     Future.delayed(Duration(seconds: 2), () {
-      setState(() => isLoading = false);
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
     });
+  }
+
+  Future<void> _signOut() async {
+    // Show confirmation dialog
+    final bool? shouldSignOut = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Color(0xFF2A2D3A),
+          title: Text(
+            'Sign Out',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Text(
+            'Are you sure you want to sign out?',
+            style: TextStyle(color: Color(0xFF9CA3AF)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: Color(0xFF9CA3AF)),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: Text('Sign Out'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldSignOut != true) return;
+
+    setState(() => _isSigningOut = true);
+
+    try {
+      // Clear the user session
+      await _sessionService.clearSession();
+      
+      // Optionally clear biometric data (uncomment if you want to clear saved biometric email)
+      // await _biometricService.disableBiometric();
+
+      if (mounted) {
+        // Navigate to sign-in page and clear all previous routes
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/signin',
+          (route) => false,
+        );
+        
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Signed out successfully'),
+            backgroundColor: Color(0xFFFF6B35),
+          ),
+        );
+      }
+    } catch (e) {
+      print("Error signing out: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error signing out. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSigningOut = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return isLoading
-      ? SettingsSkeletonPage()
-      : ActualSettingsPage(); // Your existing settings page content
-  }
-}
-
-class ActualSettingsPage extends StatelessWidget {
-  const ActualSettingsPage({Key? key}) : super(key: key);
-
-  // Removed the final _sessionService field from here.
-
-  Future<void> _signOut(BuildContext context) async {
-    // Initialize SessionService locally within the method
-    final SessionService sessionService = SessionService();
-    await sessionService.clearSession();
-    if (Navigator.canPop(context)) {
-      Navigator.popUntil(context, (route) => route.isFirst); // Pop all routes until the first one
-    }
-    Navigator.pushReplacementNamed(context, '/signin'); // Navigate to sign-in page
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        ? SettingsPageSkeletonLoading()
+        : Scaffold(
+            backgroundColor: Color(0xFF1A1D29),
+            appBar: AppBar(
+              backgroundColor: Color(0xFF1A1D29),
+              elevation: 0,
+              centerTitle: true,
+              title: Text(
+                'Settings',
+                style: TextStyle(color: Colors.white),
+              ),
+              leading: IconButton(
+                icon: Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ),
+            body: SingleChildScrollView(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text(
-                        'Settings',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        'Manage your preferences',
-                        style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
+                  SizedBox(height: 20),
+                  _buildSectionTitle('Profile'),
+                  _buildSettingsTile(
+                    context: context,
+                    title: 'Edit Profile',
+                    icon: Icons.person_outline,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(builder: (context) => ProfilePage()),
+                      );
+                    },
                   ),
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF16213E),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.search,
-                      color: Colors.white70,
-                      size: 20,
-                    ),
+                  _buildSettingsTile(
+                    context: context,
+                    title: 'Change Password',
+                    icon: Icons.lock_outline,
+                    onTap: () {},
                   ),
+                  _buildSectionTitle('Preferences'),
+                  _buildSettingsTile(
+                    context: context,
+                    title: 'Notifications',
+                    icon: Icons.notifications_none,
+                    onTap: () {},
+                  ),
+                  _buildSettingsTile(
+                    context: context,
+                    title: 'Theme',
+                    icon: Icons.color_lens_outlined,
+                    onTap: () {},
+                  ),
+                  _buildSettingsTile(
+                    context: context,
+                    title: 'Currency',
+                    icon: Icons.monetization_on_outlined,
+                    onTap: () {},
+                  ),
+                  _buildSectionTitle('App Info'),
+                  _buildSettingsTile(
+                    context: context,
+                    title: 'About Ahorra',
+                    icon: Icons.info_outline,
+                    onTap: () {},
+                  ),
+                  _buildSettingsTile(
+                    context: context,
+                    title: 'Privacy Policy',
+                    icon: Icons.privacy_tip_outlined,
+                    onTap: () {},
+                  ),
+                  _buildSettingsTile(
+                    context: context,
+                    title: 'Terms of Service',
+                    icon: Icons.description_outlined,
+                    onTap: () {},
+                  ),
+                  _buildSectionTitle('Support'),
+                  _buildSettingsTile(
+                    context: context,
+                    title: 'Help & FAQ',
+                    icon: Icons.help_outline,
+                    onTap: () {},
+                  ),
+                  _buildSettingsTile(
+                    context: context,
+                    title: 'Contact Us',
+                    icon: Icons.email_outlined,
+                    onTap: () {},
+                  ),
+                  SizedBox(height: 40),
+                  _buildSignOutButton(),
+                  SizedBox(height: 40),
                 ],
               ),
-              
-              const SizedBox(height: 32),
-              
-              // Settings List
+            ),
+          );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 4),
+      child: Text(
+        title,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSettingsTile({
+    required BuildContext context,
+    required String title,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      color: Color(0xFF2A2D3A),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Icon(icon, color: Color(0xFFFF6B35), size: 24),
+              SizedBox(width: 20),
               Expanded(
-                child: ListView(
-                  children: [
-                    _buildSettingsSection(
-                      'Account',
-                      [
-                        _buildSettingsItem(Icons.person, 'Profile', 'Manage your profile information'),
-                        _buildSettingsItem(Icons.security, 'Security', 'Password and security settings'),
-                        _buildSettingsItem(Icons.notifications, 'Notifications', 'Manage notification preferences'),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    _buildSettingsSection(
-                      'Preferences',
-                      [
-                        _buildSettingsItem(Icons.palette, 'Theme', 'Dark mode, colors, and appearance'),
-                        _buildSettingsItem(Icons.language, 'Language', 'Change app language'),
-                        _buildSettingsItem(Icons.attach_money, 'Currency', 'Set default currency'),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    _buildSettingsSection(
-                      'Data',
-                      [
-                        _buildSettingsItem(Icons.backup, 'Backup', 'Backup and restore your data'),
-                        _buildSettingsItem(Icons.download, 'Export', 'Export your financial data'),
-                        _buildSettingsItem(Icons.delete, 'Clear Data', 'Reset all app data'),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    _buildSettingsSection(
-                      'Support',
-                      [
-                        _buildSettingsItem(Icons.help, 'Help Center', 'Get help and support'),
-                        _buildSettingsItem(Icons.feedback, 'Feedback', 'Send us your feedback'),
-                        _buildSettingsItem(Icons.info, 'About', 'App version and information'),
-                      ],
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Sign Out Section
-                    _buildSettingsSection(
-                      'Session',
-                      [
-                        _buildSignOutItem(context), // New Sign Out item
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 100), // Space for bottom navigation
-                  ],
+                child: Text(
+                  title,
+                  style: TextStyle(color: Colors.white, fontSize: 16),
                 ),
               ),
+              Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
             ],
           ),
         ),
@@ -159,146 +422,38 @@ class ActualSettingsPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSettingsSection(String title, List<Widget> items) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: Color(0xFFFF6B35),
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF16213E),
+  Widget _buildSignOutButton() {
+    return Center(
+      child: OutlinedButton(
+        onPressed: _isSigningOut ? null : _signOut,
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: Colors.red),
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Column(
-            children: items,
-          ),
+          padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
         ),
-      ],
-    );
-  }
-
-  Widget _buildSettingsItem(IconData icon, String title, String subtitle) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: Colors.white10,
-            width: 0.5,
-          ),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: const Color(0xFFFF6B35).withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              icon,
-              color: const Color(0xFFFF6B35),
-              size: 20,
-            ),
-          ),
-          
-          const SizedBox(width: 16),
-          
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
+        child: _isSigningOut
+            ? SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: Colors.white54,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          
-          const Icon(
-            Icons.arrow_forward_ios,
-            color: Colors.white54,
-            size: 16,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // New widget for the Sign Out item
-  Widget _buildSignOutItem(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _signOut(context), // Call the sign out method
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: const BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: Colors.white10,
-              width: 0.5,
-            ),
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.2), // Red for sign out
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(
-                Icons.logout,
-                color: Colors.red, // Red icon
-                size: 20,
-              ),
-            ),
-            
-            const SizedBox(width: 16),
-            
-            const Expanded(
-              child: Text(
+              )
+            : Text(
                 'Sign Out',
                 style: TextStyle(
-                  color: Colors.red, // Red text
+                  color: Colors.red,
                   fontSize: 16,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
-            
-            const Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.white54,
-              size: 16,
-            ),
-          ],
-        ),
       ),
     );
   }
 }
+
+// Export ActualSettingsPage as SettingsPage for compatibility
+typedef SettingsPage = ActualSettingsPage;
