@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // Assuming this is used for some icons
 import 'package:url_launcher/url_launcher.dart'; // Assuming this is used for launching URLs
+import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 
 import 'profile_page.dart'; // Ensure this path is correct relative to settings_page.dart
 import '../services/session_service.dart'; // Import the SessionService
@@ -177,6 +178,7 @@ class ActualSettingsPage extends StatefulWidget {
 class _ActualSettingsPageState extends State<ActualSettingsPage> {
   bool isLoading = true;
   bool _isSigningOut = false;
+  bool _isResetting = false;
   final _sessionService = SessionService();
   final _biometricService = BiometricService();
 
@@ -190,6 +192,136 @@ class _ActualSettingsPageState extends State<ActualSettingsPage> {
         });
       }
     });
+  }
+
+  Future<void> _resetFinancialData() async {
+    // Show confirmation dialog
+    final bool? shouldReset = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Color(0xFF2A2D3A),
+          title: Text(
+            'Reset Financial Data',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Text(
+            'This will clear all your savings data, transactions, expenses, and financial goals. Your profile and account information will remain unchanged. This action cannot be undone. Are you sure you want to continue?',
+            style: TextStyle(color: Color(0xFF9CA3AF)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: Color(0xFF9CA3AF)),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.orange,
+              ),
+              child: Text('Reset Financial Data'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldReset != true) return;
+
+    setState(() => _isResetting = true);
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      // Only clear financial/money-related data - keep profile and user data intact
+      await prefs.remove('savings_amount');
+      await prefs.remove('total_balance');
+      await prefs.remove('current_balance');
+      await prefs.remove('monthly_goal');
+      await prefs.remove('savings_goal');
+      await prefs.remove('yearly_goal');
+      await prefs.remove('transactions');
+      await prefs.remove('transaction_history');
+      await prefs.remove('expenses');
+      await prefs.remove('expense_history');
+      await prefs.remove('income');
+      await prefs.remove('income_history');
+      await prefs.remove('savings_goals');
+      await prefs.remove('financial_goals');
+      await prefs.remove('expense_categories');
+      await prefs.remove('budget_data');
+      await prefs.remove('monthly_budget');
+      await prefs.remove('spending_limit');
+      await prefs.remove('financial_data');
+      await prefs.remove('wallet_balance');
+      await prefs.remove('bank_balance');
+      await prefs.remove('investment_data');
+      await prefs.remove('recurring_transactions');
+      await prefs.remove('category_budgets');
+      
+      // Clear any keys that contain financial terms but preserve user/profile data
+      final keys = prefs.getKeys();
+      for (String key in keys) {
+        // Skip user, profile, session, and auth data
+        if (key.startsWith('user_') || 
+            key.startsWith('profile_') || 
+            key.startsWith('session_') || 
+            key.startsWith('auth_') ||
+            key.startsWith('account_') ||
+            key.contains('name') ||
+            key.contains('email') ||
+            key.contains('phone') ||
+            key.contains('avatar') ||
+            key.contains('settings_')) {
+          continue; // Keep these keys
+        }
+        
+        // Remove keys that likely contain financial data
+        if (key.contains('money') ||
+            key.contains('amount') ||
+            key.contains('balance') ||
+            key.contains('transaction') ||
+            key.contains('expense') ||
+            key.contains('income') ||
+            key.contains('saving') ||
+            key.contains('budget') ||
+            key.contains('goal') ||
+            key.contains('financial') ||
+            key.contains('wallet') ||
+            key.contains('bank') ||
+            key.contains('investment')) {
+          await prefs.remove(key);
+        }
+      }
+
+      if (mounted) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Financial data reset successfully'),
+            backgroundColor: Color(0xFFFF6B35),
+          ),
+        );
+        
+        // Navigate back to home page to show the reset state
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    } catch (e) {
+      print("Error resetting financial data: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error resetting financial data. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isResetting = false);
+    }
   }
 
   Future<void> _signOut() async {
@@ -332,6 +464,15 @@ class _ActualSettingsPageState extends State<ActualSettingsPage> {
                     icon: Icons.monetization_on_outlined,
                     onTap: () {},
                   ),
+                  _buildSectionTitle('Data Management'),
+                  _buildSettingsTile(
+                    context: context,
+                    title: 'Reset Financial Data',
+                    icon: Icons.refresh_outlined,
+                    onTap: _resetFinancialData,
+                    titleColor: Colors.orange,
+                    iconColor: Colors.orange,
+                  ),
                   _buildSectionTitle('App Info'),
                   _buildSettingsTile(
                     context: context,
@@ -392,6 +533,8 @@ class _ActualSettingsPageState extends State<ActualSettingsPage> {
     required String title,
     required IconData icon,
     required VoidCallback onTap,
+    Color? titleColor,
+    Color? iconColor,
   }) {
     return Card(
       color: Color(0xFF2A2D3A),
@@ -406,12 +549,12 @@ class _ActualSettingsPageState extends State<ActualSettingsPage> {
           padding: const EdgeInsets.all(16.0),
           child: Row(
             children: [
-              Icon(icon, color: Color(0xFFFF6B35), size: 24),
+              Icon(icon, color: iconColor ?? Color(0xFFFF6B35), size: 24),
               SizedBox(width: 20),
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(color: Colors.white, fontSize: 16),
+                  style: TextStyle(color: titleColor ?? Colors.white, fontSize: 16),
                 ),
               ),
               Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),

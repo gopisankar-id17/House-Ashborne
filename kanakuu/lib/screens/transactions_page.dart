@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'package:intl/intl.dart'; // For date formatting
 import 'skeleton_loading_page.dart';
 import '../services/session_service.dart'; // Import SessionService
+import '../services/currency_service.dart'; // Import CurrencyService
 
 class TransactionsPage extends StatefulWidget {
   @override
@@ -37,12 +38,15 @@ class ActualTransactionsPage extends StatefulWidget {
 
 class _ActualTransactionsPageState extends State<ActualTransactionsPage> {
   final SessionService _sessionService = SessionService();
+  final CurrencyService _currencyService = CurrencyService();
   String? _currentUserId;
+  String _currencySymbol = '\$';
 
   @override
   void initState() {
     super.initState();
     _loadUserId();
+    _loadCurrencySymbol();
   }
 
   Future<void> _loadUserId() async {
@@ -50,6 +54,38 @@ class _ActualTransactionsPageState extends State<ActualTransactionsPage> {
     setState(() {
       _currentUserId = userId;
     });
+  }
+
+  Future<void> _loadCurrencySymbol() async {
+    final symbol = await _currencyService.getCurrencySymbol();
+    if (mounted) {
+      setState(() {
+        _currencySymbol = symbol;
+      });
+    }
+  }
+
+  // Helper method to format amount with currency conversion
+  Future<String> _formatAmount(double amount, bool isIncome, {String? originalCurrency}) async {
+    double displayAmount;
+    
+    // If transaction has original currency info, use it, otherwise convert from USD
+    if (originalCurrency != null) {
+      final currentCurrency = await _currencyService.getSelectedCurrency();
+      if (originalCurrency == currentCurrency) {
+        // Same currency, no conversion needed
+        displayAmount = amount;
+      } else {
+        // Convert from stored USD to current currency
+        displayAmount = await _currencyService.convertFromUSD(amount);
+      }
+    } else {
+      // Legacy transaction without currency info, assume it's in USD and convert
+      displayAmount = await _currencyService.convertFromUSD(amount);
+    }
+    
+    final prefix = isIncome ? '+' : '-';
+    return '$prefix$_currencySymbol${displayAmount.toStringAsFixed(2)}';
   }
 
   // Helper to get icon for a category
@@ -170,25 +206,32 @@ class _ActualTransactionsPageState extends State<ActualTransactionsPage> {
                           itemBuilder: (context, index) {
                             final transaction = transactions[index].data() as Map<String, dynamic>;
                             final type = transaction['type'] as String;
-                            final amount = transaction['amount'] as num;
+                            final amount = (transaction['amount'] as num).toDouble();
                             final category = transaction['category'] as String;
                             final description = transaction['description'] as String;
                             final date = transaction['date'] as Timestamp;
+                            final originalCurrency = transaction['currency'] as String?; // Get stored currency
 
                             final isIncome = type == 'Income';
-                            final displayAmount = isIncome ? '+\$${amount.toStringAsFixed(2)}' : '-\$${amount.toStringAsFixed(2)}';
                             final icon = _getCategoryIcon(category, type);
                             final iconColor = _getCategoryColor(category, type);
                             final formattedDate = _formatDate(date);
 
-                            return _buildTransactionItem(
-                              description.isNotEmpty ? description : category, // Use description if available, else category
-                              category,
-                              displayAmount,
-                              formattedDate,
-                              icon,
-                              iconColor,
-                              isIncome,
+                            return FutureBuilder<String>(
+                              future: _formatAmount(amount, isIncome, originalCurrency: originalCurrency),
+                              builder: (context, amountSnapshot) {
+                                final displayAmount = amountSnapshot.data ?? '${isIncome ? '+' : '-'}$_currencySymbol${amount.toStringAsFixed(2)}';
+                                
+                                return _buildTransactionItem(
+                                  description.isNotEmpty ? description : category, // Use description if available, else category
+                                  category,
+                                  displayAmount,
+                                  formattedDate,
+                                  icon,
+                                  iconColor,
+                                  isIncome,
+                                );
+                              },
                             );
                           },
                         );

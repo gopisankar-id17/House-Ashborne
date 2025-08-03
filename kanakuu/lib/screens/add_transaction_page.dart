@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'skeleton_loading_page.dart';
 import '../services/session_service.dart'; // Import the SessionService
+import '../services/currency_service.dart'; // Import CurrencyService
 
 // Function to show the modal bottom sheet
 void showAddTransactionModal(BuildContext context) {
@@ -52,7 +53,9 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   DateTime selectedDate = DateTime.now();
 
   final SessionService _sessionService = SessionService(); // Initialize SessionService
+  final CurrencyService _currencyService = CurrencyService(); // Initialize CurrencyService
   bool _isSaving = false; // New state for saving indicator
+  String _currencySymbol = '\$'; // Default currency symbol
 
   List<Map<String, dynamic>> incomeCategories = [
     {'name': 'Salary', 'icon': Icons.work_outline, 'color': Colors.green},
@@ -69,6 +72,21 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
     {'name': 'Fun', 'icon': Icons.celebration_outlined, 'color': Colors.purple},
     {'name': 'Health', 'icon': Icons.favorite_outline, 'color': Colors.green},
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrencySymbol();
+  }
+
+  Future<void> _loadCurrencySymbol() async {
+    final symbol = await _currencyService.getCurrencySymbol();
+    if (mounted) {
+      setState(() {
+        _currencySymbol = symbol;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -244,7 +262,7 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
           child: Row(
             children: [
               Text(
-                '\$',
+                _currencySymbol, // Use dynamic currency symbol
                 style: TextStyle(
                   color: Colors.grey[400],
                   fontSize: 18,
@@ -577,18 +595,21 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
           ),
         );
         Navigator.pop(context); // Dismiss modal
-        // Optionally navigate to sign-in page if not already handled by session check
-        // Navigator.pushReplacementNamed(context, '/signin');
         return;
       }
 
       final double amount = double.parse(amountController.text);
+      
+      // Convert amount to USD for storage if not already USD
+      final double amountInUSD = await _currencyService.convertToUSD(amount);
 
       // Prepare transaction data
       final transactionData = {
         'userId': userId,
         'type': selectedType,
-        'amount': amount,
+        'amount': amountInUSD, // Store amount in USD
+        'originalAmount': amount, // Store original amount in selected currency
+        'currency': await _currencyService.getSelectedCurrency(), // Store currency
         'category': selectedCategory,
         'description': descriptionController.text.trim(),
         'date': Timestamp.fromDate(selectedDate), // Save date as Firestore Timestamp
