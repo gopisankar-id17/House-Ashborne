@@ -10,30 +10,20 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  
-  # Firebase Core and Auth are essential for user management
-  firebase_core: ^2.28.0 # Use the latest stable version
-  firebase_auth: ^4.19.0 # Use the latest stable version
-  cloud_firestore: ^4.17.0 # Use the latest stable version
-  firebase_storage: ^11.7.0 # Use the latest stable version
-
-  # Image handling
-  image_picker: ^1.1.0 # For picking images from gallery/camera
-
-  # Local storage for session management
-  shared_preferences: ^2.2.3 # For SessionService
-
-  # Icons and URL launching
-  font_awesome_flutter: ^10.7.0 # For Font Awesome icons (if used)
-  url_launcher: ^6.2.2 # For launching URLs (if used)
-
-  # Add these missing packages:
-  uuid: ^4.3.3 # For generating unique IDs (e.g., in createaccount.dart)
-  local_auth: ^2.2.0 # For biometric authentication (e.g., in biometric_service.dart)
-  intl: ^0.19.0 # For internationalization and date formatting (e.g., in transactions_page.dart)
-
-  # Other dependencies your app might have (keep existing ones)
-  # cupertino_icons: ^1.0.6
+  firebase_core: ^2.28.0 
+  firebase_auth: ^4.19.0 
+  cloud_firestore: ^4.17.0  
+  firebase_storage: ^11.7.0 
+  image_picker: ^1.1.0 
+  shared_preferences: ^2.2.3 
+  font_awesome_flutter: ^10.7.0 
+  url_launcher: ^6.2.2 
+  uuid: ^4.3.3 
+  local_auth: ^2.2.0 
+  intl: ^0.19.0 
+  path_provider: ^2.1.2
+  permission_handler: ^11.3.0
+  share_plus: ^7.2.2 
 
 dev_dependencies:
   flutter_test:

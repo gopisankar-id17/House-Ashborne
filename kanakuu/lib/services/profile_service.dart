@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
-import 'session_service.dart'; // Import your SessionService
+import 'session_service.dart';
 
 class ProfileService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   final SessionService _sessionService = SessionService();
 
   // Get current user's profile data using SessionService
@@ -11,18 +13,15 @@ class ProfileService {
     try {
       final userId = await _sessionService.getUserSession();
       if (userId == null) {
-        print('No active user session found');
+        print('Error: No active user session found');
         return null;
       }
 
       print('Getting profile for user ID: $userId');
-      final doc = await _firestore
-          .collection('users')
-          .doc(userId)
-          .get();
-
-      if (doc.exists) {
-        final data = doc.data();
+      final docSnapshot = await _firestore.collection('users').doc(userId).get();
+      
+      if (docSnapshot.exists) {
+        final data = docSnapshot.data();
         print('Profile data retrieved: $data');
         return data;
       } else {
@@ -34,29 +33,42 @@ class ProfileService {
       return null;
     }
   }
-  
-  // Get a stream of the current user's profile data for real-time updates
+
+  // Get current user's profile data as a stream
   Stream<DocumentSnapshot> getUserProfileStream() {
     return Stream.fromFuture(_sessionService.getUserSession()).asyncExpand((userId) {
       if (userId == null) {
+        // Return a stream that emits a fake empty document snapshot
         return Stream.empty();
       }
+      
       return _firestore.collection('users').doc(userId).snapshots();
     });
   }
 
-  // Update user profile with new data (without image upload to Firebase Storage)
-  Future<bool> updateUserProfile({
+  // Check if user is authenticated using SessionService
+  Future<bool> isUserAuthenticatedAsync() async {
+    try {
+      final userId = await _sessionService.getUserSession();
+      return userId != null;
+    } catch (e) {
+      print('Error checking authentication: $e');
+      return false;
+    }
+  }
+
+  // Update user profile with local image storage
+  Future<Map<String, dynamic>> updateUserProfile({
     String? name,
     String? email,
     String? phone,
-    File? profileImage, // We'll store this as a local path or ignore it
+    File? profileImage,
   }) async {
     try {
       final userId = await _sessionService.getUserSession();
       if (userId == null) {
         print('Error: No active user session found');
-        return false;
+        return {'success': false, 'imageUploaded': false, 'error': 'No active user session'};
       }
 
       print('Updating profile for user ID: $userId');
@@ -67,60 +79,77 @@ class ProfileService {
       if (email != null) updateData['email'] = email;
       if (phone != null) updateData['phone'] = phone;
 
-      // For image, you can either:
-      // 1. Store the local file path (not recommended for production)
-      // 2. Convert to base64 and store in Firestore (has size limits)
-      // 3. Ignore the image for now
+      // Handle profile image - store local path for immediate display
+      bool imageUploadSuccess = true;
+      String? imageUploadError;
+      
       if (profileImage != null) {
-        // Option 1: Store local file path (will only work on same device)
-        updateData['profileImagePath'] = profileImage.path;
-        print('Profile image path stored: ${profileImage.path}');
+        try {
+          print('🔄 Processing profile image...');
+          print('📂 File path: ${profileImage.path}');
+          
+          // Check if file exists
+          if (await profileImage.exists()) {
+            // Store the local file path so image shows immediately
+            updateData['profileImagePath'] = profileImage.path;
+            print('📱 Stored local image path: ${profileImage.path}');
+          } else {
+            throw Exception('Selected image file does not exist');
+          }
+          
+        } catch (e) {
+          print('❌ Error processing profile image: $e');
+          imageUploadSuccess = false;
+          imageUploadError = e.toString();
+        }
       }
 
       updateData['updatedAt'] = FieldValue.serverTimestamp();
 
-      // Check if document exists first
+      // Update Firestore document
       final docRef = _firestore.collection('users').doc(userId);
       final docSnapshot = await docRef.get();
       
       if (docSnapshot.exists) {
-        // Document exists, use update
         await docRef.update(updateData);
-        print('Profile updated successfully using update()');
+        print('Profile updated successfully');
       } else {
-        // Document doesn't exist, use set with merge
         await docRef.set(updateData, SetOptions(merge: true));
-        print('Profile created/updated successfully using set() with merge');
+        print('Profile created successfully');
       }
 
-      return true;
+      return {
+        'success': true, 
+        'imageUploaded': imageUploadSuccess,
+        'imageUploadError': imageUploadError,
+      };
     } catch (e) {
       print('Error updating user profile: $e');
-      print('Error type: ${e.runtimeType}');
-      if (e is FirebaseException) {
-        print('Firebase error code: ${e.code}');
-        print('Firebase error message: ${e.message}');
-      }
-      return false;
+      return {
+        'success': false, 
+        'imageUploaded': false,
+        'error': e.toString(),
+      };
     }
   }
 
-  // Delete profile image (remove from Firestore document)
+  // Delete profile image
   Future<bool> deleteProfileImage() async {
     try {
       final userId = await _sessionService.getUserSession();
-      if (userId == null) return false;
+      if (userId == null) {
+        print('Error: No active user session found');
+        return false;
+      }
 
-      // Remove the profileImagePath field from Firestore document
-      await _firestore
-          .collection('users')
-          .doc(userId)
-          .update({
+      final docRef = _firestore.collection('users').doc(userId);
+      
+      await docRef.update({
+        'profileImageUrl': FieldValue.delete(),
         'profileImagePath': FieldValue.delete(),
-        'profileImageUrl': FieldValue.delete(), // Remove this too if it exists
       });
-
-      print('Profile image path removed from Firestore');
+      
+      print('Profile image references removed');
       return true;
     } catch (e) {
       print('Error deleting profile image: $e');
@@ -128,54 +157,37 @@ class ProfileService {
     }
   }
 
-  // Create initial user profile (to be called when a user first registers)
-  Future<bool> createUserProfile({
+  // Create user profile when account is created
+  Future<void> createUserProfile({
+    required String userId,
     required String name,
     required String email,
+    String? phone,
   }) async {
     try {
-      final userId = await _sessionService.getUserSession();
-      if (userId == null) return false;
-      
-      await _firestore
-          .collection('users')
-          .doc(userId)
-          .set({
+      await _firestore.collection('users').doc(userId).set({
         'name': name,
         'email': email,
-        'profileImagePath': null,
-        'profileImageUrl': null,
-        'phone': null,
+        'phone': phone,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       });
       
       print('User profile created successfully');
-      return true;
     } catch (e) {
       print('Error creating user profile: $e');
-      return false;
+      rethrow;
     }
   }
-  
-  // Sign out the current user using SessionService
+
+  // Sign out user
   Future<void> signOut() async {
-    await _sessionService.clearSession();
-  }
-
-  // Check if user is currently authenticated using SessionService
-  bool get isUserAuthenticated {
-    // This needs to be async, so we'll make it a Future
-    return true; // Placeholder, use the method below
-  }
-
-  // Async method to check if user is authenticated
-  Future<bool> isUserAuthenticatedAsync() async {
-    return await _sessionService.isLoggedIn();
-  }
-  
-  // Get current user ID if authenticated
-  Future<String?> get currentUserId async {
-    return await _sessionService.getUserSession();
+    try {
+      await _sessionService.clearSession();
+      print('User signed out successfully');
+    } catch (e) {
+      print('Error signing out: $e');
+      rethrow;
+    }
   }
 }

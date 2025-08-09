@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'screens/sign_in_screen.dart';
 import 'screens/createaccount.dart';
 import 'main_navigation_router.dart'; // Import the navigation router
@@ -104,12 +103,12 @@ class _InitialLoadingWrapperState extends State<InitialLoadingWrapper>
     _logoController.forward();
     _dotsController.repeat(reverse: true);
 
-    // Navigate to auth wrapper after 3 seconds
+    // Navigate directly to MainNavigationRouter after 3 seconds
     await Future.delayed(const Duration(seconds: 3));
     if (mounted) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => AuthWrapper()),
+        MaterialPageRoute(builder: (context) => MainNavigationRouter()),
       );
     }
   }
@@ -209,35 +208,6 @@ class Dot extends StatelessWidget {
           shape: BoxShape.circle,
         ),
       ),
-    );
-  }
-}
-
-class AuthWrapper extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            backgroundColor: const Color(0xFF1A1D29),
-            body: Center(
-              child: CircularProgressIndicator(
-                color: Colors.orange,
-              ),
-            ),
-          );
-        }
-
-        if (snapshot.hasData) {
-          // User is signed in - Navigate to MainNavigationRouter
-          return MainNavigationRouter(); // Changed this line too
-        } else {
-          // User is not signed in
-          return const SignInScreen();
-        }
-      },
     );
   }
 }

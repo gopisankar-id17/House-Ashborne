@@ -16,7 +16,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final _phoneController = TextEditingController();
   
   File? _selectedImage;
-  String? _currentImagePath; // Store local image path from Firestore
+  String? _currentImageUrl; // Store Firebase Storage URL instead of local path
   bool _isLoading = false;
   bool _isLoadingData = true;
 
@@ -24,6 +24,36 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _loadUserProfile();
+    _testImageDisplay(); // Add diagnostic test
+  }
+
+  // Helper method to check if URL is a network URL or local file path
+  bool _isNetworkUrl(String url) {
+    return url.startsWith('http://') || url.startsWith('https://');
+  }
+
+  // Diagnostic method to test profile image display
+  Future<void> _testImageDisplay() async {
+    print('🔍 Starting profile image diagnostic...');
+    print('🔍 Selected image: $_selectedImage');
+    print('🔍 Current image URL: $_currentImageUrl');
+    
+    // Test if we can reach the profile service
+    try {
+      final profile = await _profileService.getUserProfile();
+      print('🔍 Raw profile data: $profile');
+      if (profile != null) {
+        print('🔍 Available profile fields: ${profile.keys.toList()}');
+        if (profile.containsKey('profileImageUrl')) {
+          print('🔍 profileImageUrl exists: ${profile['profileImageUrl']}');
+        }
+        if (profile.containsKey('profileImagePath')) {
+          print('🔍 profileImagePath exists: ${profile['profileImagePath']}');
+        }
+      }
+    } catch (e) {
+      print('❌ Error in diagnostic: $e');
+    }
   }
 
   @override
@@ -37,20 +67,25 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _loadUserProfile() async {
     try {
       final profile = await _profileService.getUserProfile();
+      print('🔍 Debug: Profile loaded: $profile');
+      
       if (profile != null) {
         setState(() {
           _nameController.text = profile['name'] ?? '';
           _emailController.text = profile['email'] ?? '';
           _phoneController.text = profile['phone'] ?? '';
-          _currentImagePath = profile['profileImagePath']; // Get local image path
+          _currentImageUrl = profile['profileImageUrl'] ?? profile['profileImagePath']; // Try both fields
           _isLoadingData = false;
         });
-        print('Profile loaded: ${profile['name']}, Image Path: ${profile['profileImagePath']}');
+        print('✅ Profile loaded: ${profile['name']}');
+        print('🖼️ Image URL from profileImageUrl: ${profile['profileImageUrl']}');
+        print('🖼️ Image URL from profileImagePath: ${profile['profileImagePath']}');
+        print('🖼️ Final selected image URL: $_currentImageUrl');
       } else {
         setState(() {
           _isLoadingData = false;
         });
-        print('No profile found');
+        print('❌ No profile found');
       }
     } catch (e) {
       print('Error loading profile: $e');
@@ -108,10 +143,10 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       setState(() {
         _selectedImage = null;
-        _currentImagePath = null;
+        _currentImageUrl = null;
       });
       
-      // Delete from Firestore
+      // Delete from Firebase Storage and Firestore
       final success = await _profileService.deleteProfileImage();
       if (success) {
         _showSuccessSnackBar('Profile image removed successfully!');
@@ -173,7 +208,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     _pickImage();
                   },
                 ),
-                if (_selectedImage != null || _currentImagePath != null)
+                if (_selectedImage != null || _currentImageUrl != null)
                   _buildImageOption(
                     icon: Icons.delete,
                     label: 'Remove',
@@ -242,7 +277,7 @@ class _ProfilePageState extends State<ProfilePage> {
       print('Phone: ${_phoneController.text.trim()}');
       print('Has selected image: ${_selectedImage != null}');
 
-      final success = await _profileService.updateUserProfile(
+      final result = await _profileService.updateUserProfile(
         name: _nameController.text.trim(),
         email: _emailController.text.trim(),
         phone: _phoneController.text.trim().isNotEmpty ? _phoneController.text.trim() : null,
@@ -253,16 +288,34 @@ class _ProfilePageState extends State<ProfilePage> {
         _isLoading = false;
       });
 
-      if (success) {
-        // Update the current image path to the selected image path
+      if (result['success']) {
+        print('✅ Profile update successful');
+        
+        // Check if image upload was successful
         if (_selectedImage != null) {
-          setState(() {
-            _currentImagePath = _selectedImage!.path;
-            _selectedImage = null; // Clear selected image since it's now saved
-          });
+          if (result['imageUploaded']) {
+            print('✅ Image uploaded successfully');
+            
+            // Reload the profile to get the updated image URL
+            await _loadUserProfile();
+            
+            setState(() {
+              _selectedImage = null; // Clear selected image since it's now saved
+            });
+            
+            _showSuccessSnackBar('Profile and photo updated successfully!');
+          } else {
+            print('❌ Image upload failed: ${result['imageUploadError']}');
+            // DON'T clear the selected image so user can see what they tried to upload
+            // DON'T reload profile since image URL won't change
+            _showErrorSnackBar('Profile updated but photo upload failed. Please try uploading the photo again.');
+          }
+        } else {
+          // No image to upload, just text fields updated
+          await _loadUserProfile();
+          _showSuccessSnackBar('Profile updated successfully!');
         }
         
-        _showSuccessSnackBar('Profile updated successfully!');
         Navigator.pop(context);
       } else {
         // Check if user is logged in
@@ -271,7 +324,11 @@ class _ProfilePageState extends State<ProfilePage> {
         if (!isAuthenticated) {
           _showErrorSnackBar('Please log in to update your profile.');
         } else {
-          _showErrorSnackBar('Failed to update profile. Please check your internet connection and try again.');
+          String errorMessage = 'Failed to update profile. Please check your internet connection and try again.';
+          if (result['error'] != null) {
+            errorMessage = 'Failed to update profile: ${result['error']}';
+          }
+          _showErrorSnackBar(errorMessage);
         }
       }
     } catch (e) {
@@ -331,22 +388,52 @@ class _ProfilePageState extends State<ProfilePage> {
                   _selectedImage!,
                   fit: BoxFit.cover,
                 )
-              : _currentImagePath != null && File(_currentImagePath!).existsSync()
-                  ? Image.file(
-                      File(_currentImagePath!),
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        print('Error loading local image: $error');
-                        return Container(
-                          color: const Color(0xFF16213E),
-                          child: const Icon(
-                            Icons.person,
-                            size: 60,
-                            color: Colors.white54,
-                          ),
-                        );
-                      },
-                    )
+              : _currentImageUrl != null && _currentImageUrl!.isNotEmpty
+                  ? _isNetworkUrl(_currentImageUrl!)
+                      ? Image.network(
+                          _currentImageUrl!,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              color: const Color(0xFF16213E),
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                      : null,
+                                  color: const Color(0xFFFF6B35),
+                                ),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            print('❌ Error loading network image: $error');
+                            print('🔗 Failed URL: $_currentImageUrl');
+                            print('📋 Stack trace: $stackTrace');
+                            return Container(
+                              color: const Color(0xFF16213E),
+                              child: const Icon(
+                                Icons.person,
+                                size: 60,
+                                color: Colors.white54,
+                              ),
+                            );
+                          },
+                        )
+                      : File(_currentImageUrl!).existsSync()
+                          ? Image.file(
+                              File(_currentImageUrl!),
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              color: const Color(0xFF16213E),
+                              child: const Icon(
+                                Icons.person,
+                                size: 60,
+                                color: Colors.white54,
+                              ),
+                            )
                   : Container(
                       color: const Color(0xFF16213E),
                       child: const Icon(

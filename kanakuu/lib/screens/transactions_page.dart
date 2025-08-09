@@ -206,7 +206,7 @@ class _ActualTransactionsPageState extends State<ActualTransactionsPage> {
                           itemBuilder: (context, index) {
                             final transaction = transactions[index].data() as Map<String, dynamic>;
                             final type = transaction['type'] as String;
-                            final amount = (transaction['amount'] as num).toDouble();
+                            final amount = (transaction['originalAmount'] as num?)?.toDouble() ?? (transaction['amount'] as num).toDouble(); // Use originalAmount if available, fallback to amount
                             final category = transaction['category'] as String;
                             final description = transaction['description'] as String;
                             final date = transaction['date'] as Timestamp;
