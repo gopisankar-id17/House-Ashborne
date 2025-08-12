@@ -1432,14 +1432,7 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
                   color: Colors.orange,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  'Current Month',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
+                
               ),
             ],
           ),

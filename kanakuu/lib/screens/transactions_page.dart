@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'package:intl/intl.dart'; // For date formatting
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:csv/csv.dart';
 import 'skeleton_loading_page.dart';
 import '../services/session_service.dart'; // Import SessionService
 import '../services/currency_service.dart'; // Import CurrencyService
@@ -152,6 +156,150 @@ class _ActualTransactionsPageState extends State<ActualTransactionsPage> {
     }
   }
 
+  // Method to download transactions as CSV
+  Future<void> _downloadTransactionsAsCSV() async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return Center(
+            child: Container(
+              padding: EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Color(0xFF2A2D3A),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(color: Colors.orange),
+                  SizedBox(height: 16),
+                  Text(
+                    'Preparing CSV file...',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+
+      // Fetch all transactions for the current user
+      final snapshot = await FirebaseFirestore.instance
+          .collection('transactions')
+          .where('userId', isEqualTo: _currentUserId)
+          .orderBy('createdAt', descending: true)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        Navigator.of(context).pop(); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No transactions found to export'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      // Prepare CSV data
+      List<List<String>> csvData = [
+        // CSV Header
+        ['Date', 'Type', 'Category', 'Description', 'Amount', 'Currency']
+      ];
+
+      // Add transaction data
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final date = (data['date'] as Timestamp).toDate();
+        final type = data['type'] ?? 'Unknown';
+        final category = data['category'] ?? 'Other';
+        final description = data['description'] ?? '';
+        final amount = (data['originalAmount'] ?? data['amount'] ?? 0).toString();
+        final currency = data['originalCurrency'] ?? 'USD';
+
+        csvData.add([
+          DateFormat('yyyy-MM-dd HH:mm:ss').format(date),
+          type,
+          category,
+          description,
+          amount,
+          currency,
+        ]);
+      }
+
+      // Convert to CSV string
+      String csvString = const ListToCsvConverter().convert(csvData);
+
+      // Get the Downloads directory
+      Directory? directory;
+      if (Platform.isAndroid) {
+        directory = await getExternalStorageDirectory();
+        if (directory != null) {
+          // Create Downloads folder if it doesn't exist
+          String downloadsPath = '/storage/emulated/0/Download';
+          directory = Directory(downloadsPath);
+          if (!await directory.exists()) {
+            directory = await getExternalStorageDirectory();
+          }
+        }
+      } else {
+        directory = await getApplicationDocumentsDirectory();
+      }
+
+      if (directory != null) {
+        // Create file name with current date
+        final now = DateTime.now();
+        final fileName = 'transactions_${DateFormat('yyyy-MM-dd_HH-mm-ss').format(now)}.csv';
+        final file = File('${directory.path}/$fileName');
+
+        // Write CSV data to file
+        await file.writeAsString(csvString);
+
+        Navigator.of(context).pop(); // Close loading dialog
+
+        // Share the file
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          subject: 'Transaction Export',
+          text: 'Your transaction data exported on ${DateFormat('yyyy-MM-dd').format(now)}',
+        );
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Transactions exported successfully!'),
+            backgroundColor: Colors.green,
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {},
+            ),
+          ),
+        );
+      } else {
+        Navigator.of(context).pop(); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Unable to access file system'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      Navigator.of(context).pop(); // Close loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error exporting transactions: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -270,18 +418,40 @@ class _ActualTransactionsPageState extends State<ActualTransactionsPage> {
               ),
             ],
           ),
-          TextButton(
-            onPressed: () {
-              // TODO: Implement navigation to a "View All Transactions" page
-            },
-            child: Text(
-              'View All',
-              style: TextStyle(
-                color: Colors.orange,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+          Row(
+            children: [
+              // Download CSV button
+              GestureDetector(
+                onTap: _downloadTransactionsAsCSV,
+                child: Container(
+                  padding: EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Color(0xFF2A2D3A),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.download_outlined,
+                    color: Colors.orange,
+                    size: 20,
+                  ),
+                ),
               ),
-            ),
+              SizedBox(width: 12),
+              // View All button
+              TextButton(
+                onPressed: () {
+                  // TODO: Implement navigation to a "View All Transactions" page
+                },
+                child: Text(
+                  'View All',
+                  style: TextStyle(
+                    color: Colors.orange,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

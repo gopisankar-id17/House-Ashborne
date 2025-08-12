@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore
 import 'skeleton_loading_page.dart';
 import '../services/session_service.dart'; // Import the SessionService
 import '../services/currency_service.dart'; // Import CurrencyService
+import '../services/category_service.dart'; // Import CategoryService
 
 // Function to show the modal bottom sheet
 void showAddTransactionModal(BuildContext context) {
@@ -47,36 +48,46 @@ class AddTransactionPage extends StatefulWidget {
 
 class _AddTransactionPageState extends State<AddTransactionPage> {
   String selectedType = 'Income';
-  String selectedCategory = 'Salary';
+  String selectedCategory = ''; // Will be set when categories load
   TextEditingController amountController = TextEditingController(); // Initialize empty
   TextEditingController descriptionController = TextEditingController(); // Initialize empty
   DateTime selectedDate = DateTime.now();
 
   final SessionService _sessionService = SessionService(); // Initialize SessionService
   final CurrencyService _currencyService = CurrencyService(); // Initialize CurrencyService
+  final CategoryService _categoryService = CategoryService(); // Initialize CategoryService
   bool _isSaving = false; // New state for saving indicator
   String _currencySymbol = '\$'; // Default currency symbol
-
-  List<Map<String, dynamic>> incomeCategories = [
-    {'name': 'Salary', 'icon': Icons.work_outline, 'color': Colors.green},
-    {'name': 'Freelance', 'icon': Icons.laptop_mac, 'color': Colors.orange},
-    {'name': 'Investment', 'icon': Icons.trending_up, 'color': Colors.brown},
-    {'name': 'Bonus', 'icon': Icons.card_giftcard_outlined, 'color': Colors.purple},
-  ];
-
-  List<Map<String, dynamic>> expenseCategories = [
-    {'name': 'Food', 'icon': Icons.restaurant_outlined, 'color': Colors.orange},
-    {'name': 'Transport', 'icon': Icons.directions_car_outlined, 'color': Colors.brown},
-    {'name': 'Bills', 'icon': Icons.receipt_outlined, 'color': Colors.red},
-    {'name': 'Shopping', 'icon': Icons.shopping_bag_outlined, 'color': Colors.brown},
-    {'name': 'Fun', 'icon': Icons.celebration_outlined, 'color': Colors.purple},
-    {'name': 'Health', 'icon': Icons.favorite_outline, 'color': Colors.green},
-  ];
+  
+  // Dynamic category lists
+  List<CategoryModel> incomeCategories = [];
+  List<CategoryModel> expenseCategories = [];
 
   @override
   void initState() {
     super.initState();
     _loadCurrencySymbol();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final allCategories = await _categoryService.getAllCategoriesDebug();
+      setState(() {
+        incomeCategories = allCategories.where((cat) => cat.type.toLowerCase() == 'income' && cat.isActive).toList();
+        expenseCategories = allCategories.where((cat) => cat.type.toLowerCase() == 'expense' && cat.isActive).toList();
+        
+        // Set default selectedCategory based on available categories
+        if (selectedType == 'Income' && incomeCategories.isNotEmpty) {
+          selectedCategory = incomeCategories.first.name;
+        } else if (selectedType == 'Expense' && expenseCategories.isNotEmpty) {
+          selectedCategory = expenseCategories.first.name;
+        }
+      });
+      print('DEBUG: Loaded ${incomeCategories.length} income categories, ${expenseCategories.length} expense categories');
+    } catch (e) {
+      print('Error loading categories: $e');
+    }
   }
 
   Future<void> _loadCurrencySymbol() async {
@@ -178,7 +189,9 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               child: GestureDetector(
                 onTap: () => setState(() {
                   selectedType = 'Expense';
-                  selectedCategory = 'Food'; // Reset category when type changes
+                  if (expenseCategories.isNotEmpty) {
+                    selectedCategory = expenseCategories.first.name; // Reset category when type changes
+                  }
                 }),
                 child: Container(
                   padding: EdgeInsets.symmetric(vertical: 16),
@@ -208,7 +221,9 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
               child: GestureDetector(
                 onTap: () => setState(() {
                   selectedType = 'Income';
-                  selectedCategory = 'Salary'; // Reset category when type changes
+                  if (incomeCategories.isNotEmpty) {
+                    selectedCategory = incomeCategories.first.name; // Reset category when type changes
+                  }
                 }),
                 child: Container(
                   padding: EdgeInsets.symmetric(vertical: 16),
@@ -297,7 +312,28 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
   }
 
   Widget _buildCategorySelector() {
-    List<Map<String, dynamic>> currentCategories = selectedType == 'Income' ? incomeCategories : expenseCategories;
+    List<CategoryModel> currentCategories = selectedType == 'Income' ? incomeCategories : expenseCategories;
+    
+    if (currentCategories.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Category',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          SizedBox(height: 12),
+          Text(
+            'No categories found. Please create some categories first.',
+            style: TextStyle(color: Colors.white70),
+          ),
+        ],
+      );
+    }
     
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -322,10 +358,10 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
           ),
           itemCount: currentCategories.length,
           itemBuilder: (context, index) {
-            Map<String, dynamic> category = currentCategories[index];
-            bool isSelected = selectedCategory == category['name'];
+            CategoryModel category = currentCategories[index];
+            bool isSelected = selectedCategory == category.name;
             return GestureDetector(
-              onTap: () => setState(() => selectedCategory = category['name']),
+              onTap: () => setState(() => selectedCategory = category.name),
               child: Container(
                 decoration: BoxDecoration(
                   color: Color(0xFF1A1D29),
@@ -342,18 +378,18 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
                       width: 32,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: category['color'],
+                        color: category.color,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Icon(
-                        category['icon'],
+                        category.icon,
                         color: Colors.white,
                         size: 18,
                       ),
                     ),
                     SizedBox(height: 8),
                     Text(
-                      category['name'],
+                      category.name,
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 12,
@@ -575,6 +611,16 @@ class _AddTransactionPageState extends State<AddTransactionPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please enter a valid amount.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    
+    if (selectedCategory.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a category.'),
           backgroundColor: Colors.red,
         ),
       );

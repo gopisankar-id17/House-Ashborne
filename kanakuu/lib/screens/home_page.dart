@@ -5,8 +5,10 @@ import 'dart:math' as math;
 import '../services/profile_service.dart';
 import '../services/session_service.dart';
 import '../services/currency_service.dart';
+import '../services/budget_management_service.dart';
 import 'home_page_painters.dart';
-import 'budget_page_new.dart';
+import 'budget_management_page.dart';
+import 'category_management_page.dart';
 
 // Add this function at the top level (outside any class) to handle background notifications
 @pragma('vm:entry-point')
@@ -391,6 +393,7 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
   final ProfileService _profileService = ProfileService();
   final SessionService _sessionService = SessionService();
   final CurrencyService _currencyService = CurrencyService();
+  final BudgetManagementService _budgetService = BudgetManagementService();
   String? _currentUserId;
   String _currencySymbol = '\$';
   String _selectedCurrency = 'USD';
@@ -518,7 +521,7 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
               SizedBox(height: 20),
               _buildCategoryBudgets(),
               SizedBox(height: 20),
-              _buildSpendingAnalysis(),
+              _buildCategoryBreakdown(),
               SizedBox(height: 100),
             ],
           ),
@@ -1139,12 +1142,16 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
       );
     }
 
-    return StreamBuilder<QuerySnapshot>(
+    final now = DateTime.now();
+    final targetMonth = DateTime(now.year, now.month, 1);
+    final docId = '${_currentUserId}_${targetMonth.year}_${targetMonth.month}';
+
+    return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('budgets')
-          .where('userId', isEqualTo: _currentUserId)
+          .collection('monthly_budgets')
+          .doc(docId)
           .snapshots(),
-      builder: (context, budgetSnapshot) {
+      builder: (context, monthlyBudgetSnapshot) {
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('transactions')
@@ -1152,26 +1159,27 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
               .where('type', isEqualTo: 'Expense')
               .snapshots(),
           builder: (context, expenseSnapshot) {
+            // Get monthly budget data
+            final monthlyBudgetData = monthlyBudgetSnapshot.hasData && monthlyBudgetSnapshot.data!.exists
+                ? monthlyBudgetSnapshot.data!.data() as Map<String, dynamic>?
+                : null;
+
             double totalBudget = 0.0;
             double totalSpent = 0.0;
 
-            // Calculate total budget from user's budget settings
-            if (budgetSnapshot.hasData) {
-              for (var doc in budgetSnapshot.data!.docs) {
-                final data = doc.data() as Map<String, dynamic>;
-                totalBudget += (data['amount'] as num?)?.toDouble() ?? 0.0;
-              }
+            // Get monthly budget amount
+            if (monthlyBudgetData != null) {
+              totalBudget = (monthlyBudgetData['totalAmount'] as num?)?.toDouble() ?? 0.0;
             }
 
             // Calculate total spent this month
             if (expenseSnapshot.hasData) {
-              final now = DateTime.now();
               final currentMonth = now.month;
               final currentYear = now.year;
 
               for (var doc in expenseSnapshot.data!.docs) {
                 final data = doc.data() as Map<String, dynamic>;
-                final amount = (data['originalAmount'] as num?)?.toDouble() ?? (data['amount'] as num).toDouble(); // Use originalAmount if available
+                final amount = (data['originalAmount'] as num?)?.toDouble() ?? (data['amount'] as num).toDouble();
                 final date = (data['date'] as Timestamp).toDate();
 
                 if (date.month == currentMonth && date.year == currentYear) {
@@ -1182,7 +1190,7 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
 
             final remaining = totalBudget - totalSpent;
 
-            // Show empty state if no budgets are set
+            // Show empty state if no monthly budget is set
             if (totalBudget == 0.0) {
               return Container(
                 padding: EdgeInsets.all(20),
@@ -1221,7 +1229,7 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
                           ),
                           SizedBox(height: 12),
                           Text(
-                            'No Budget Set',
+                            'No Monthly Budget Set',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 16,
@@ -1240,11 +1248,10 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
                           SizedBox(height: 16),
                           ElevatedButton(
                             onPressed: () {
-                              // Navigate to budget management page
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => BudgetPage(),
+                                  builder: (context) => BudgetManagementPage(),
                                 ),
                               );
                             },
@@ -1255,7 +1262,7 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
                               ),
                             ),
                             child: Text(
-                              'Set Budget',
+                              'Set Monthly Budget',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w600,
@@ -1270,6 +1277,10 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
               );
             }
 
+            // Calculate percentages
+            final spentPercentage = totalBudget > 0 ? (totalSpent / totalBudget * 100) : 0.0;
+            final remainingPercentage = totalBudget > 0 ? (remaining / totalBudget * 100) : 0.0;
+
             return Container(
               padding: EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -1279,69 +1290,273 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Budget Management',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Budget Management',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => BudgetManagementPage(),
+                            ),
+                          );
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.orange,
+                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        ),
+                        child: Text(
+                          'Manage',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   SizedBox(height: 20),
                   
-                  // Total Budget Card
-                  FutureBuilder<String>(
-                    future: _formatAmount(totalBudget),
-                    builder: (context, snapshot) {
-                      return _buildBudgetCard(
-                        icon: Icons.account_balance_wallet,
-                        iconColor: Colors.blue,
-                        iconBgColor: Colors.blue.withOpacity(0.2),
-                        title: 'Total Budget',
-                        amount: snapshot.data ?? '$_currencySymbol${totalBudget.toStringAsFixed(0)}',
-                        subtitle: 'Set for this month',
-                        actionText: 'Manage',
-                        actionColor: Colors.blue,
-                      );
-                    },
+                  // Budget breakdown cards
+                  Row(
+                    children: [
+                      // Total Budget Card
+                      Expanded(
+                        child: FutureBuilder<String>(
+                          future: _formatAmount(totalBudget),
+                          builder: (context, snapshot) {
+                            return Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Color(0xFF3A3D4A),
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(
+                                  color: Colors.blue.withOpacity(0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 30,
+                                        height: 30,
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue.withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Icon(
+                                          Icons.account_balance_wallet,
+                                          color: Colors.blue,
+                                          size: 16,
+                                        ),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Total Budget',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    snapshot.data ?? '$_currencySymbol${totalBudget.toStringAsFixed(0)}',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Set for this month',
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      
+                      SizedBox(width: 12),
+                      
+                      // Amount Spent Card
+                      Expanded(
+                        child: FutureBuilder<String>(
+                          future: _formatAmount(totalSpent),
+                          builder: (context, snapshot) {
+                            final percentage = totalBudget > 0 ? (totalSpent / totalBudget * 100).toInt() : 0;
+                            return Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Color(0xFF3A3D4A),
+                                borderRadius: BorderRadius.circular(15),
+                                border: Border.all(
+                                  color: Colors.orange.withOpacity(0.3),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 30,
+                                        height: 30,
+                                        decoration: BoxDecoration(
+                                          color: Colors.orange.withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Icon(
+                                          Icons.trending_up,
+                                          color: Colors.orange,
+                                          size: 16,
+                                        ),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Amount Spent',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    snapshot.data ?? '$_currencySymbol${totalSpent.toStringAsFixed(0)}',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    '$percentage% of budget',
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                   
-                  SizedBox(height: 16),
+                  SizedBox(height: 12),
                   
-                  // Amount Spent Card
-                  FutureBuilder<String>(
-                    future: _formatAmount(totalSpent),
-                    builder: (context, snapshot) {
-                      final percentage = totalBudget > 0 ? (totalSpent / totalBudget * 100).toInt() : 0;
-                      return _buildBudgetCard(
-                        icon: Icons.trending_up,
-                        iconColor: Colors.orange,
-                        iconBgColor: Colors.orange.withOpacity(0.2),
-                        title: 'Amount Spent',
-                        amount: snapshot.data ?? '$_currencySymbol${totalSpent.toStringAsFixed(0)}',
-                        subtitle: '$percentage% of budget',
-                        actionText: 'Used',
-                        actionColor: Colors.orange,
-                      );
-                    },
-                  ),
-                  
-                  SizedBox(height: 16),
-                  
-                  // Remaining Card
+                  // Remaining Card (full width)
                   FutureBuilder<String>(
                     future: _formatAmount(remaining),
                     builder: (context, snapshot) {
                       final percentage = totalBudget > 0 ? (remaining / totalBudget * 100).toInt() : 0;
-                      return _buildBudgetCard(
-                        icon: Icons.savings,
-                        iconColor: remaining >= 0 ? Colors.green : Colors.red,
-                        iconBgColor: (remaining >= 0 ? Colors.green : Colors.red).withOpacity(0.2),
-                        title: 'Remaining',
-                        amount: snapshot.data ?? '$_currencySymbol${remaining.toStringAsFixed(0)}',
-                        subtitle: remaining >= 0 ? '$percentage% left to spend' : 'Over budget',
-                        actionText: remaining >= 0 ? 'Available' : 'Exceeded',
-                        actionColor: remaining >= 0 ? Colors.green : Colors.red,
+                      return Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Color(0xFF3A3D4A),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            color: (remaining >= 0 ? Colors.green : Colors.red).withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 30,
+                              height: 30,
+                              decoration: BoxDecoration(
+                                color: (remaining >= 0 ? Colors.green : Colors.red).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                Icons.savings,
+                                color: remaining >= 0 ? Colors.green : Colors.red,
+                                size: 16,
+                              ),
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Remaining',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    snapshot.data ?? '$_currencySymbol${remaining.toStringAsFixed(0)}',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    remaining >= 0 ? '$percentage% left to spend' : 'Over budget',
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 10,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: (remaining >= 0 ? Colors.green : Colors.red).withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: remaining >= 0 ? Colors.green : Colors.red,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Text(
+                                remaining >= 0 ? 'Available' : 'Exceeded',
+                                style: TextStyle(
+                                  color: remaining >= 0 ? Colors.green : Colors.red,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       );
                     },
                   ),
@@ -1796,12 +2011,17 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
 
             // Get category budgets
             if (budgetSnapshot.hasData) {
+              print('DEBUG Home: Found ${budgetSnapshot.data!.docs.length} budget documents');
               for (var doc in budgetSnapshot.data!.docs) {
                 final data = doc.data() as Map<String, dynamic>;
-                final category = data['category'] as String;
-                final amount = (data['originalAmount'] as num?)?.toDouble() ?? (data['amount'] as num).toDouble(); // Use originalAmount if available
-                categoryBudgets[category] = amount;
+                print('DEBUG Home: Budget doc data: $data');
+                final categoryName = data['categoryName'] as String; // Use categoryName instead of category
+                final amount = (data['budgetAmount'] as num?)?.toDouble() ?? 0.0; // Use budgetAmount instead of amount
+                categoryBudgets[categoryName] = amount;
+                print('DEBUG Home: Added budget for $categoryName: \$${amount}');
               }
+            } else {
+              print('DEBUG Home: No budget snapshot data available');
             }
 
             // Calculate category spending for current month
@@ -1822,8 +2042,12 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
               }
             }
 
+            print('DEBUG Home: Total category budgets found: ${categoryBudgets.length}');
+            print('DEBUG Home: Category budgets: $categoryBudgets');
+
             // Show empty state if no category budgets are set
             if (categoryBudgets.isEmpty) {
+              print('DEBUG Home: Showing empty state for category budgets');
               return Container(
                 padding: EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -1851,18 +2075,39 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => BudgetPage(),
+                                    builder: (context) => CategoryManagementPage(),
+                                  ),
+                                );
+                              },
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.blue,
+                                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                              ),
+                              child: Text(
+                                'Categories',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => BudgetManagementPage(),
                                   ),
                                 );
                               },
                               style: TextButton.styleFrom(
                                 foregroundColor: Colors.orange,
-                                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                               ),
                               child: Text(
-                                'Manage',
+                                'Budgets',
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 10,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -1929,7 +2174,7 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => BudgetPage(),
+                                  builder: (context) => BudgetManagementPage(),
                                 ),
                               );
                             },
@@ -1982,7 +2227,7 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => BudgetPage(),
+                                  builder: (context) => BudgetManagementPage(),
                                 ),
                               );
                             },
@@ -2192,7 +2437,497 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
     }
   }
 
-  Widget _buildSpendingAnalysis() {
+  // NOTE: Analytics-related methods below are no longer used and can be removed
+  // They were previously used for financial analytics that was removed from home page
+  
+  Widget _buildOverviewContent(double currentMonthExpenses, double currentMonthIncome, double savingsRate, double financialHealthScore) {
+    return Column(
+      children: [
+        // Financial Health Score
+        Container(
+          padding: EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Color(0xFF3A3D4A),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Financial Health',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  Text(
+                    financialHealthScore >= 70 ? 'Good' :
+                    financialHealthScore >= 40 ? 'Fair' : 'Needs Work',
+                    style: TextStyle(
+                      color: financialHealthScore >= 70 ? Colors.green :
+                             financialHealthScore >= 40 ? Colors.orange : Colors.red,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 16),
+              Text(
+                financialHealthScore.toInt().toString(),
+                style: TextStyle(
+                  color: Colors.orange,
+                  fontSize: 48,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                'Health Score',
+                style: TextStyle(
+                  color: Colors.grey[400],
+                  fontSize: 14,
+                ),
+              ),
+              SizedBox(height: 16),
+              LinearProgressIndicator(
+                value: financialHealthScore / 100,
+                backgroundColor: Colors.grey[700],
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  financialHealthScore >= 70 ? Colors.green :
+                  financialHealthScore >= 40 ? Colors.orange : Colors.red,
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        SizedBox(height: 16),
+        
+        // Total Spending and Savings Rate Cards
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Color(0xFF3A3D4A),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.trending_down,
+                          color: Colors.red,
+                          size: 16,
+                        ),
+                        SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Total Spending',
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    FutureBuilder<String>(
+                      future: _formatAmount(currentMonthExpenses),
+                      builder: (context, snapshot) {
+                        return Text(
+                          snapshot.data ?? '$_currencySymbol${currentMonthExpenses.toStringAsFixed(0)}',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        );
+                      },
+                    ),
+                    Text(
+                      'This month',
+                      style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            SizedBox(width: 12),
+            
+            Expanded(
+              child: Container(
+                padding: EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Color(0xFF3A3D4A),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.trending_up,
+                          color: Colors.green,
+                          size: 16,
+                        ),
+                        SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Savings Rate',
+                            style: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      '${savingsRate.toStringAsFixed(1)}%',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      savingsRate > 0 ? 'This month' : 'No savings',
+                      style: TextStyle(
+                        color: Colors.grey[500],
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSpendingContent(Map<String, double> categoryTotals, double currentMonthExpenses) {
+    final sortedCategories = categoryTotals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Color(0xFF3A3D4A),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Expense Breakdown',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Icon(
+                Icons.donut_small,
+                color: Colors.orange,
+                size: 20,
+              ),
+            ],
+          ),
+          SizedBox(height: 20),
+          
+          if (sortedCategories.isNotEmpty) ...[
+            // Centered Chart
+            Center(
+              child: Container(
+                width: 160,
+                height: 160,
+                child: CustomPaint(
+                  painter: ExpenseBreakdownPieChart(
+                    Map.fromEntries(sortedCategories.take(6)),
+                    currentMonthExpenses,
+                  ),
+                ),
+              ),
+            ),
+            
+            SizedBox(height: 20),
+            
+            // Legend Below Chart
+            Column(
+              children: sortedCategories.take(6).map((entry) {
+                final percentage = currentMonthExpenses > 0 
+                    ? (entry.value / currentMonthExpenses * 100)
+                    : 0.0;
+                return _buildLiveExpenseLegendItem(
+                  entry.key,
+                  _getCategoryColor(entry.key),
+                  entry.value,
+                );
+              }).toList(),
+            ),
+          ] else ...[
+            Container(
+              height: 200,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.donut_small_outlined,
+                      color: Colors.grey[600],
+                      size: 40,
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'No spending data available',
+                      style: TextStyle(
+                        color: Colors.grey[400],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoriesContent(Map<String, double> categoryTotals, double currentMonthExpenses) {
+    final sortedCategories = categoryTotals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Color(0xFF3A3D4A),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Categories This Month',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: 16),
+          
+          if (sortedCategories.isNotEmpty) ...[
+            Column(
+              children: sortedCategories.map((entry) {
+                final percentage = currentMonthExpenses > 0 
+                    ? (entry.value / currentMonthExpenses * 100)
+                    : 0.0;
+                return Container(
+                  margin: EdgeInsets.only(bottom: 12),
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Color(0xFF2A2D3A),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: _getCategoryColor(entry.key),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              entry.key,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              '${percentage.toStringAsFixed(1)}% of total spending',
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      FutureBuilder<String>(
+                        future: _formatAmount(entry.value),
+                        builder: (context, snapshot) {
+                          return Text(
+                            snapshot.data ?? '$_currencySymbol${entry.value.toStringAsFixed(0)}',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ] else ...[
+            Container(
+              height: 100,
+              child: Center(
+                child: Text(
+                  'No category data available',
+                  style: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalsContent() {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Color(0xFF3A3D4A),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Financial Goals',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: 16),
+          
+          // Example goals
+          _buildGoalItem('Emergency Fund', 75.0, 'Build 6 months of expenses'),
+          SizedBox(height: 12),
+          _buildGoalItem('Save for Vacation', 40.0, 'Save \$3,000 for trip'),
+          SizedBox(height: 12),
+          _buildGoalItem('Pay Off Debt', 60.0, 'Reduce credit card debt'),
+          
+          SizedBox(height: 20),
+          
+          // Add goal button
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.orange, width: 1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.add, color: Colors.orange, size: 16),
+                SizedBox(width: 8),
+                Text(
+                  'Add New Goal',
+                  style: TextStyle(
+                    color: Colors.orange,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalItem(String title, double progress, String description) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Color(0xFF2A2D3A),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                '${progress.toInt()}%',
+                style: TextStyle(
+                  color: Colors.orange,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          Text(
+            description,
+            style: TextStyle(
+              color: Colors.grey[400],
+              fontSize: 12,
+            ),
+          ),
+          SizedBox(height: 12),
+          LinearProgressIndicator(
+            value: progress / 100,
+            backgroundColor: Colors.grey[700],
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.orange),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryBreakdown() {
     if (_currentUserId == null) {
       return Container(
         padding: EdgeInsets.all(20),
@@ -2216,48 +2951,27 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
 
         if (snapshot.hasData) {
           final now = DateTime.now();
-          DateTime startDate;
-
-          // Determine date range based on selected time period
-          switch (_selectedTimePeriod) {
-            case 'Current Month':
-              startDate = DateTime(now.year, now.month, 1);
-              break;
-            case 'Last 3 Months':
-              startDate = DateTime(now.year, now.month - 2, 1);
-              break;
-            case 'Last 6 Months':
-              startDate = DateTime(now.year, now.month - 5, 1);
-              break;
-            case 'All Time':
-              startDate = DateTime(2020, 1, 1); // Far back date
-              break;
-            default:
-              startDate = DateTime(now.year, now.month, 1);
-          }
+          final currentMonth = now.month;
+          final currentYear = now.year;
 
           for (var doc in snapshot.data!.docs) {
             final data = doc.data() as Map<String, dynamic>;
-            final amount = (data['originalAmount'] as num?)?.toDouble() ?? (data['amount'] as num).toDouble(); // Use originalAmount if available
+            final amount = (data['originalAmount'] as num?)?.toDouble() ?? (data['amount'] as num).toDouble();
             final category = data['category'] as String? ?? 'Other';
             final date = (data['date'] as Timestamp).toDate();
 
-            // Include transactions within the selected time period
-            if (date.isAfter(startDate) || date.isAtSameMomentAs(startDate)) {
+            // Current month data
+            if (date.month == currentMonth && date.year == currentYear) {
               categoryTotals[category] = (categoryTotals[category] ?? 0.0) + amount;
               totalExpenses += amount;
             }
           }
         }
 
-        // Sort categories by amount (descending)
         final sortedCategories = categoryTotals.entries.toList()
           ..sort((a, b) => b.value.compareTo(a.value));
 
-        // Check if there are any transactions at all
-        final hasAnyTransactions = snapshot.hasData && snapshot.data!.docs.isNotEmpty;
-        
-        if (!hasAnyTransactions) {
+        if (sortedCategories.isEmpty) {
           return Container(
             padding: EdgeInsets.all(20),
             decoration: BoxDecoration(
@@ -2265,18 +2979,17 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
               borderRadius: BorderRadius.circular(16),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
                     Icon(
-                      Icons.pie_chart,
+                      Icons.donut_small,
                       color: Colors.orange,
                       size: 24,
                     ),
                     SizedBox(width: 8),
                     Text(
-                      'Spending Analysis',
+                      'Category Breakdown',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -2299,13 +3012,13 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
                   child: Column(
                     children: [
                       Icon(
-                        Icons.pie_chart_outline,
+                        Icons.donut_small_outlined,
                         color: Colors.grey[400],
                         size: 48,
                       ),
                       SizedBox(height: 12),
                       Text(
-                        'No Spending Data',
+                        'No Expenses This Month',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,
@@ -2314,109 +3027,7 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
                       ),
                       SizedBox(height: 8),
                       Text(
-                        'Start adding expense transactions to view your spending breakdown and analysis',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.grey[400],
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        // Check if there are expenses for the selected time period
-        if (totalExpenses == 0.0) {
-          return Container(
-            padding: EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Color(0xFF2A2D3A),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.pie_chart,
-                      color: Colors.orange,
-                      size: 24,
-                    ),
-                    SizedBox(width: 8),
-                    Text(
-                      'Spending Analysis',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 16),
-                // Time Period Selector
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Color(0xFF3A3D4A),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: _selectedTimePeriod,
-                      icon: Icon(Icons.arrow_drop_down, color: Colors.orange),
-                      style: TextStyle(color: Colors.white, fontSize: 14),
-                      dropdownColor: Color(0xFF3A3D4A),
-                      items: ['Current Month', 'Last 3 Months', 'Last 6 Months', 'All Time']
-                          .map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(value),
-                        );
-                      }).toList(),
-                      onChanged: (String? newValue) {
-                        setState(() {
-                          _selectedTimePeriod = newValue!;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-                SizedBox(height: 20),
-                Container(
-                  padding: EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Color(0xFF3A3D4A),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.grey.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.calendar_today,
-                        color: Colors.grey[400],
-                        size: 48,
-                      ),
-                      SizedBox(height: 12),
-                      Text(
-                        'No Expenses for $_selectedTimePeriod',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Add some expense transactions to see your spending analysis for this time period',
+                        'Start adding expense transactions to see your category breakdown',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.grey[400],
@@ -2443,13 +3054,13 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
               Row(
                 children: [
                   Icon(
-                    Icons.pie_chart,
+                    Icons.donut_small,
                     color: Colors.orange,
                     size: 24,
                   ),
                   SizedBox(width: 8),
                   Text(
-                    'Spending Analysis',
+                    'Category Breakdown',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -2458,122 +3069,42 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
                   ),
                 ],
               ),
-              SizedBox(height: 16),
-              
-              // Time Period Selector and Expense Breakdown Header
-              Container(
-                padding: EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Color(0xFF3A3D4A),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Expense Breakdown',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Icon(
-                          Icons.bar_chart,
-                          color: Colors.orange,
-                          size: 20,
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: 12),
-                    // Time Period Selector
-                    Container(
-                      height: 40,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            'Current Month',
-                            'Last 3 Months',
-                            'Last 6 Months',
-                            'All Time'
-                          ].map((period) {
-                            final isSelected = _selectedTimePeriod == period;
-                            return Padding(
-                              padding: EdgeInsets.only(right: 8),
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    _selectedTimePeriod = period;
-                                  });
-                                },
-                                child: Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: isSelected ? Colors.orange : Colors.transparent,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                      color: isSelected ? Colors.orange : Colors.grey[600]!,
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    period,
-                                    style: TextStyle(
-                                      color: isSelected ? Colors.white : Colors.grey[400],
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
               SizedBox(height: 20),
               
-              // Pie Chart and Legend Side by Side
+              // Pie Chart Centered with Legend Below
               if (sortedCategories.isNotEmpty) ...[
-                Row(
-                  children: [
-                    // Pie Chart
-                    Container(
-                      width: 160,
-                      height: 160,
-                      child: CustomPaint(
-                        painter: ExpenseBreakdownPieChart(
-                          Map.fromEntries(sortedCategories.take(6)), // Top 6 categories
-                          totalExpenses,
-                        ),
+                // Centered Pie Chart
+                Center(
+                  child: Container(
+                    width: 180,
+                    height: 180,
+                    child: CustomPaint(
+                      painter: ExpenseBreakdownPieChart(
+                        Map.fromEntries(sortedCategories.take(6)), // Top 6 categories
+                        totalExpenses,
                       ),
                     ),
-                    
-                    SizedBox(width: 20),
-                    
-                    // Legend
-                    Expanded(
-                      child: Column(
-                        children: sortedCategories.take(6).map((entry) {
-                          return _buildLiveExpenseLegendItem(
-                            entry.key,
-                            _getCategoryColor(entry.key),
-                            entry.value,
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
+                
+                SizedBox(height: 20),
+                
+                // Legend Below Chart
+                Column(
+                  children: sortedCategories.take(6).map((entry) {
+                    final percentage = totalExpenses > 0 
+                        ? (entry.value / totalExpenses * 100)
+                        : 0.0;
+                    return _buildLiveExpenseLegendItem(
+                      entry.key,
+                      _getCategoryColor(entry.key),
+                      entry.value,
+                    );
+                  }).toList(),
+                ),
+                
                 SizedBox(height: 16),
-                // Total amount for selected period
+                // Total amount for current month
                 Container(
                   padding: EdgeInsets.all(12),
                   decoration: BoxDecoration(
@@ -2584,7 +3115,7 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Total for $_selectedTimePeriod',
+                        'Total This Month',
                         style: TextStyle(
                           color: Colors.grey[400],
                           fontSize: 14,
@@ -2604,31 +3135,6 @@ class _ActualHomePageContentState extends State<ActualHomePageContent> {
                         },
                       ),
                     ],
-                  ),
-                ),
-              ] else ...[
-                // No data state
-                Container(
-                  height: 120,
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.pie_chart_outline,
-                          color: Colors.grey[600],
-                          size: 40,
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'No expenses for $_selectedTimePeriod',
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 ),
               ],
