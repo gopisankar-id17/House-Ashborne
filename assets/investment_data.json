@@ -1,0 +1,87 @@
+{
+  "risk_profiles": {
+    "conservative": {
+      "description": "Low risk tolerance, capital preservation focused",
+      "allocation": {
+        "stocks": 20,
+        "bonds": 70,
+        "cash": 10
+      },
+      "expected_return": "4-6%",
+      "suitable_for": ["Near retirement", "Low risk tolerance", "Short-term goals"]
+    },
+    "moderate": {
+      "description": "Balanced approach to growth and stability",
+      "allocation": {
+        "stocks": 60,
+        "bonds": 30,
+        "cash": 10
+      },
+      "expected_return": "6-8%",
+      "suitable_for": ["Medium-term goals", "Moderate risk tolerance", "Middle-aged investors"]
+    },
+    "aggressive": {
+      "description": "High growth potential with higher risk",
+      "allocation": {
+        "stocks": 80,
+        "bonds": 15,
+        "cash": 5
+      },
+      "expected_return": "8-10%",
+      "suitable_for": ["Young investors", "Long-term goals", "High risk tolerance"]
+    }
+  },
+  "investment_types": {
+    "stocks": {
+      "description": "Ownership shares in companies",
+      "pros": ["High growth potential", "Dividends", "Liquidity"],
+      "cons": ["Volatility", "Market risk", "Company-specific risk"],
+      "time_horizon": "Long-term (5+ years)"
+    },
+    "bonds": {
+      "description": "Loans to governments or corporations",
+      "pros": ["Steady income", "Lower volatility", "Capital preservation"],
+      "cons": ["Interest rate risk", "Inflation risk", "Lower returns"],
+      "time_horizon": "Medium-term (1-10 years)"
+    },
+    "index_funds": {
+      "description": "Funds that track market indexes",
+      "pros": ["Diversification", "Low fees", "Market returns"],
+      "cons": ["No outperformance", "Market risk", "No active management"],
+      "time_horizon": "Long-term (5+ years)"
+    },
+    "real_estate": {
+      "description": "Property investments or REITs",
+      "pros": ["Inflation hedge", "Passive income", "Tangible asset"],
+      "cons": ["Illiquidity", "High entry cost", "Maintenance costs"],
+      "time_horizon": "Long-term (5+ years)"
+    }
+  },
+  "age_based_allocation": {
+    "20s": {
+      "stocks": 90,
+      "bonds": 10,
+      "rationale": "Long time horizon allows for maximum growth"
+    },
+    "30s": {
+      "stocks": 80,
+      "bonds": 20,
+      "rationale": "Still long time horizon but starting to add stability"
+    },
+    "40s": {
+      "stocks": 70,
+      "bonds": 30,
+      "rationale": "Balancing growth with increasing stability needs"
+    },
+    "50s": {
+      "stocks": 60,
+      "bonds": 40,
+      "rationale": "Approaching retirement, need more conservative approach"
+    },
+    "60s+": {
+      "stocks": 40,
+      "bonds": 60,
+      "rationale": "Capital preservation becomes primary concern"
+    }
+  }
+}

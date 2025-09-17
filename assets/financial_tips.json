@@ -1,0 +1,84 @@
+{
+  "budgeting_tips": [
+    {
+      "category": "Emergency Fund",
+      "tip": "Aim to save 3-6 months of expenses in an easily accessible account",
+      "priority": "high",
+      "demographic": "all"
+    },
+    {
+      "category": "Student Finance",
+      "tip": "Apply for financial aid and scholarships before taking student loans",
+      "priority": "high",
+      "demographic": "student"
+    },
+    {
+      "category": "Credit Building",
+      "tip": "Start with a secured credit card and always pay on time to build credit history",
+      "priority": "medium",
+      "demographic": "student"
+    },
+    {
+      "category": "Retirement",
+      "tip": "Take advantage of employer 401(k) matching - it's free money",
+      "priority": "high",
+      "demographic": "professional"
+    },
+    {
+      "category": "Tax Planning",
+      "tip": "Maximize contributions to tax-advantaged accounts like 401(k) and IRA",
+      "priority": "medium",
+      "demographic": "professional"
+    },
+    {
+      "category": "Debt Management",
+      "tip": "Pay off high-interest debt first (avalanche method) to save on interest",
+      "priority": "high",
+      "demographic": "all"
+    }
+  ],
+  "investment_basics": [
+    {
+      "concept": "Diversification",
+      "explanation": "Don't put all your eggs in one basket - spread investments across different asset classes",
+      "risk_level": "low"
+    },
+    {
+      "concept": "Dollar-Cost Averaging",
+      "explanation": "Invest a fixed amount regularly regardless of market conditions to reduce timing risk",
+      "risk_level": "low"
+    },
+    {
+      "concept": "Index Funds",
+      "explanation": "Low-cost funds that track market indexes, providing broad diversification",
+      "risk_level": "low"
+    },
+    {
+      "concept": "Compound Interest",
+      "explanation": "Earning interest on both principal and previously earned interest - time is your friend",
+      "risk_level": "low"
+    }
+  ],
+  "common_mistakes": [
+    {
+      "mistake": "Not having an emergency fund",
+      "consequence": "Being forced to use credit cards or loans for unexpected expenses",
+      "solution": "Start with $500-1000 emergency fund, then build to 3-6 months expenses"
+    },
+    {
+      "mistake": "Paying only minimum on credit cards",
+      "consequence": "Paying significantly more in interest over time",
+      "solution": "Pay more than minimum, focus on high-interest debt first"
+    },
+    {
+      "mistake": "Not contributing to employer 401(k) match",
+      "consequence": "Missing out on free money from employer",
+      "solution": "Contribute at least enough to get full employer match"
+    },
+    {
+      "mistake": "Trying to time the market",
+      "consequence": "Missing out on long-term gains, emotional investing decisions",
+      "solution": "Use dollar-cost averaging and stick to long-term investment plan"
+    }
+  ]
+}
