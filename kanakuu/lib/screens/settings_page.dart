@@ -11,6 +11,7 @@ import 'package:cloud_firestore/cloud_firestore.dart'; // For Firestore operatio
 import 'profile_page.dart'; // Ensure this path is correct relative to settings_page.dart
 import '../services/session_service.dart'; // Import the SessionService
 import '../services/biometric_service.dart'; // Import BiometricService for clearing biometric data
+import '../services/currency_service.dart'; // Import CurrencyService
 
 // Base Skeleton Loading Widget for shared animation logic
 abstract class BaseSkeletonLoadingState<T extends StatefulWidget> extends State<T> with SingleTickerProviderStateMixin {
@@ -660,6 +661,32 @@ class _ActualSettingsPageState extends State<ActualSettingsPage> {
     }
   }
 
+  Future<void> _showCurrencySelection() async {
+    final currencyService = CurrencyService();
+    final currentCurrency = await currencyService.getSelectedCurrency();
+    
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => CurrencySelectionDialog(
+          currentCurrency: currentCurrency,
+          onCurrencySelected: (selectedCurrency) async {
+            await currencyService.saveCurrency(selectedCurrency);
+            
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Currency updated to $selectedCurrency'),
+                  backgroundColor: Color(0xFFFF6B35),
+                ),
+              );
+            }
+          },
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return isLoading
@@ -721,7 +748,7 @@ class _ActualSettingsPageState extends State<ActualSettingsPage> {
                     context: context,
                     title: 'Currency',
                     icon: Icons.monetization_on_outlined,
-                    onTap: () {},
+                    onTap: () => _showCurrencySelection(),
                   ),
                   _buildSectionTitle('Data Management'),
                   _buildSettingsTile(

@@ -1,9 +1,11 @@
 // currency_service.dart
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'exchange_rate_service.dart';
 
 class CurrencyService {
   static const String _currencyKey = 'selected_currency';
+  final ExchangeRateService _exchangeRateService = ExchangeRateService();
   
   // Supported currencies with their symbols and names
   static const Map<String, Map<String, dynamic>> supportedCurrencies = {
@@ -110,14 +112,14 @@ class CurrencyService {
   // Convert amount from USD to selected currency
   Future<double> convertFromUSD(double usdAmount) async {
     final currency = await getSelectedCurrency();
-    final rate = exchangeRates[currency] ?? 1.0;
+    final rate = await _exchangeRateService.getExchangeRate(currency);
     return usdAmount * rate;
   }
 
   // Convert amount to USD from selected currency
   Future<double> convertToUSD(double amount) async {
     final currency = await getSelectedCurrency();
-    final rate = exchangeRates[currency] ?? 1.0;
+    final rate = await _exchangeRateService.getExchangeRate(currency);
     return amount / rate;
   }
 
@@ -130,7 +132,27 @@ class CurrencyService {
   // Get exchange rate for selected currency
   Future<double> getExchangeRate() async {
     final currency = await getSelectedCurrency();
-    return exchangeRates[currency] ?? 1.0;
+    return await _exchangeRateService.getExchangeRate(currency);
+  }
+
+  // Get current exchange rates
+  Future<Map<String, double>> getCurrentRates() async {
+    return await _exchangeRateService.getCurrentRates();
+  }
+
+  // Get last update time for exchange rates
+  Future<DateTime?> getLastUpdateTime() async {
+    return await _exchangeRateService.getLastUpdateTime();
+  }
+
+  // Force refresh exchange rates
+  Future<void> forceRefreshRates() async {
+    await _exchangeRateService.forceRefresh();
+  }
+
+  // Convert between any two currencies
+  Future<double> convertBetweenCurrencies(double amount, String fromCurrency, String toCurrency) async {
+    return await _exchangeRateService.convertCurrency(amount, fromCurrency, toCurrency);
   }
 }
 

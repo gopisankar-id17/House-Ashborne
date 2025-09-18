@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'screens/sign_in_screen.dart';
 import 'screens/createaccount.dart';
+import 'screens/budget_management_page.dart';
+import 'screens/category_management_page.dart';
+import 'screens/chatbot_page.dart';
+import 'screens/profile_page.dart';
 import 'main_navigation_router.dart'; // Import the navigation router
 
 void main() async {
@@ -24,6 +28,10 @@ class MyApp extends StatelessWidget {
         '/signin': (context) => const SignInScreen(),
         '/createaccount': (context) => const CreateAccountPage(),
         '/home': (context) => MainNavigationRouter(), // Changed this line
+        '/budgetManagement': (context) => const BudgetManagementPage(),
+        '/categoryManagement': (context) => CategoryManagementPage(),
+        '/chatbot': (context) => const ChatbotPage(),
+        '/profile': (context) => ProfilePage(),
       },
       debugShowCheckedModeBanner: false,
     );

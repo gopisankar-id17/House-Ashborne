@@ -4,6 +4,7 @@ import 'screens/transactions_page.dart';
 import 'screens/analytics_page.dart';
 import 'screens/settings_page.dart';
 import 'screens/add_transaction_page.dart';
+import 'widgets/animated_chat_fab.dart';
 
 class MainNavigationRouter extends StatefulWidget {
   @override
@@ -25,6 +26,12 @@ class _MainNavigationRouterState extends State<MainNavigationRouter> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _pages[_currentIndex],
+      floatingActionButton: AnimatedChatFAB(
+        onPressed: () {
+          Navigator.pushNamed(context, '/chatbot');
+        },
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: Container(
         height: 80,
         decoration: BoxDecoration(
